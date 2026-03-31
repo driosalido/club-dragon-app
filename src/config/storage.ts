@@ -43,9 +43,9 @@ const storageConfig: StorageConfig = {
   mesasFijasCount: 4,
 
   lifecycle: {
-    warningDays: 23,
-    criticalDays: 28,
-    expiredDays: 30,
+    warningDays: 31,
+    criticalDays: 61,
+    expiredDays: 81,
   },
 }
 

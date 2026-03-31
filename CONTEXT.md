@@ -123,14 +123,14 @@ Redirects to `/login` if JWT missing or invalid.
 Config in `src/config/storage.ts`:
 - **3 pizzeros** (A, B, C), each with **10 slots** = 30 slots total
 - **4 mesas fijas**
-- Lifecycle thresholds: warning=23d, critical=28d, expired=30d
+- Lifecycle thresholds: warning=31d, critical=61d, expired=81d
 
 | Status | Days since `last_session_at` | Action |
 |--------|------------------------------|--------|
-| `active` | 0–22 | — |
-| `warning` | 23–27 | Bot notifies players |
-| `critical` | 28–29 | Bot sends urgent alert |
-| `expired` | ≥30 | Bot notifies players + admins |
+| `active` | 0–30 | — |
+| `warning` | 31–60 | Bot notifies players |
+| `critical` | 61–80 | Bot sends urgent alert |
+| `expired` | ≥81 | Bot notifies players + admins |
 | `evicted` | — | Admin manually evicted |
 | `completed` | — | Game completed by players |
 

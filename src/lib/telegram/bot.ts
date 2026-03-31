@@ -174,14 +174,14 @@ export async function sendStorageExpiredNotification(
   const playerMessage = [
     `💀 <b>${gameName}: tablero expirado</b>`,
     ``,
-    `Han pasado más de 30 días desde la última sesión. El tablero ha expirado y será retirado por los admins del club.`,
+    `Han pasado más de 80 días desde la última sesión. El tablero ha expirado y será retirado por los admins del club.`,
     `Contactad con un admin si necesitáis más tiempo.`,
   ].join('\n')
 
   const adminMessage = [
     `⚠️ <b>ADMIN: Tablero expirado — ${gameName}</b>`,
     ``,
-    `El tablero ha superado los 30 días sin actividad y necesita ser retirado.`,
+    `El tablero ha superado los 80 días sin actividad y necesita ser retirado.`,
   ].join('\n')
 
   for (const user of players) {

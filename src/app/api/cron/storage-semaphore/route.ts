@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     const { data: gameData } = await supabase.from('games').select('*').eq('id', game.game_id ?? '').single()
 
     const lastSession = game.last_session_at ? new Date(game.last_session_at) : now
-    const daysLeft = 30 - Math.floor((now.getTime() - lastSession.getTime()) / (1000 * 60 * 60 * 24))
+    const daysLeft = lifecycle.expiredDays - Math.floor((now.getTime() - lastSession.getTime()) / (1000 * 60 * 60 * 24))
 
     const storedGame = game as unknown as Tables<'stored_games'>
     try {
