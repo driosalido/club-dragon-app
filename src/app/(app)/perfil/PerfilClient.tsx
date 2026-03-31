@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Pencil, Trash2, LogOut } from 'lucide-react'
 import type { Tables } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -34,7 +35,11 @@ const INTEREST_COLORS = {
   learning: 'bg-yellow-900 text-yellow-200',
 }
 
-const DAYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+// Mon → Sun display order; day_of_week: Mon=1…Sat=6, Sun=0
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+const DAY_LABELS: Record<number, string> = { 0: 'D', 1: 'L', 2: 'M', 3: 'X', 4: 'J', 5: 'V', 6: 'S' }
+const MORNING = { time_start: '09:00', time_end: '14:00' }
+const AFTERNOON = { time_start: '16:00', time_end: '21:00' }
 
 interface AvailabilitySlot {
   id: string
@@ -43,14 +48,34 @@ interface AvailabilitySlot {
   time_end: string | null
 }
 
+type SlotKey = `${number}_m` | `${number}_t`
+
+function slotsToKeys(slots: AvailabilitySlot[]): Set<SlotKey> {
+  return new Set(slots.map((a) => {
+    const period = (!a.time_start || a.time_start < '15:00') ? 'm' : 't'
+    return `${a.day_of_week}_${period}` as SlotKey
+  }))
+}
+
+function keysToPayload(keys: Set<SlotKey>) {
+  return [...keys].map((key) => {
+    const [day, period] = key.split('_')
+    return {
+      day_of_week: parseInt(day!),
+      ...(period === 'm' ? MORNING : AFTERNOON),
+    }
+  })
+}
+
 interface Props {
   initialUser: User
 }
 
 export default function PerfilClient({ initialUser }: Props) {
   const qc = useQueryClient()
+  const router = useRouter()
   const [editingAvailability, setEditingAvailability] = useState(false)
-  const [draftDays, setDraftDays] = useState<number[]>([])
+  const [draftSlots, setDraftSlots] = useState<Set<SlotKey>>(new Set())
   const [gameSearchOpen, setGameSearchOpen] = useState(false)
   const [gameSearch, setGameSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Game[]>([])
@@ -100,11 +125,11 @@ export default function PerfilClient({ initialUser }: Props) {
   })
 
   const saveAvailability = useMutation({
-    mutationFn: (days: number[]) =>
+    mutationFn: (keys: Set<SlotKey>) =>
       fetch('/api/users/me/availability', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(days.map((d) => ({ day_of_week: d }))),
+        body: JSON.stringify(keysToPayload(keys)),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-availability'] })
@@ -140,6 +165,9 @@ export default function PerfilClient({ initialUser }: Props) {
           <p className="text-slate-500 text-xs">
             Socio desde {format(new Date(user.created_at), 'MMMM yyyy', { locale: es })}
           </p>
+          {user.member_number && (
+            <p className="mt-1 text-xs text-indigo-400">Socio #{user.member_number}</p>
+          )}
         </div>
       </div>
 
@@ -200,38 +228,74 @@ export default function PerfilClient({ initialUser }: Props) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-white">Disponibilidad</h2>
           <button
-            onClick={() => { setDraftDays(activeDays); setEditingAvailability(!editingAvailability) }}
+            onClick={() => {
+              setDraftSlots(slotsToKeys(availability))
+              setEditingAvailability((v) => !v)
+            }}
             className="text-xs text-indigo-400 hover:text-indigo-300"
           >
             {editingAvailability ? 'Cancelar' : 'Editar'}
           </button>
         </div>
 
-        <div className="flex gap-2">
-          {DAYS.map((label, day) => {
-            const isActive = editingAvailability ? draftDays.includes(day) : activeDays.includes(day)
-            return (
-              <button
-                key={day}
-                disabled={!editingAvailability}
-                onClick={() => setDraftDays((prev) =>
-                  prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-                )}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-800 text-slate-500'
-                } ${editingAvailability ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+        {(() => {
+          const activeKeys = slotsToKeys(availability)
+          const toggle = (key: SlotKey) =>
+            setDraftSlots((prev) => {
+              const next = new Set(prev)
+              next.has(key) ? next.delete(key) : next.add(key)
+              return next
+            })
+          const current = editingAvailability ? draftSlots : activeKeys
+
+          return (
+            <div className="grid grid-cols-8 gap-1">
+              {/* Header row */}
+              <div />
+              {DAY_ORDER.map((day) => (
+                <div key={day} className="text-xs text-center text-slate-400 pb-1 font-medium">
+                  {DAY_LABELS[day]}
+                </div>
+              ))}
+              {/* Mañana */}
+              <div className="text-xs text-slate-500 flex items-center">Mañana</div>
+              {DAY_ORDER.map((day) => {
+                const key = `${day}_m` as SlotKey
+                const active = current.has(key)
+                return (
+                  <button
+                    key={key}
+                    disabled={!editingAvailability}
+                    onClick={() => toggle(key)}
+                    className={`py-2 rounded transition-colors ${
+                      active ? 'bg-indigo-600' : 'bg-slate-800'
+                    } ${editingAvailability ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                  />
+                )
+              })}
+              {/* Tarde */}
+              <div className="text-xs text-slate-500 flex items-center">Tarde</div>
+              {DAY_ORDER.map((day) => {
+                const key = `${day}_t` as SlotKey
+                const active = current.has(key)
+                return (
+                  <button
+                    key={key}
+                    disabled={!editingAvailability}
+                    onClick={() => toggle(key)}
+                    className={`py-2 rounded transition-colors ${
+                      active ? 'bg-indigo-500' : 'bg-slate-800'
+                    } ${editingAvailability ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                  />
+                )
+              })}
+            </div>
+          )
+        })()}
 
         {editingAvailability && (
           <button
-            onClick={() => saveAvailability.mutate(draftDays)}
+            onClick={() => saveAvailability.mutate(draftSlots)}
             disabled={saveAvailability.isPending}
             className="mt-3 w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-medium"
           >
@@ -239,6 +303,19 @@ export default function PerfilClient({ initialUser }: Props) {
           </button>
         )}
       </section>
+
+      {/* Logout */}
+      <button
+        onClick={async () => {
+          await fetch('/api/auth/logout', { method: 'POST' })
+          qc.clear()
+          router.push('/login')
+        }}
+        className="flex items-center gap-2 text-slate-500 hover:text-red-400 text-sm py-2 transition-colors"
+      >
+        <LogOut size={15} />
+        Cerrar sesión
+      </button>
 
       {/* Game search modal */}
       {gameSearchOpen && (

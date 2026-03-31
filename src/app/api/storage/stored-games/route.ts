@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 const CreateStoredGameSchema = z.object({
   slot_id: z.string().uuid(),
   game_id: z.string().uuid(),
+  responsible_user_id: z.string().uuid().optional(),
   players: z.array(z.object({
     user_id: z.string().uuid(),
     faction_or_side: z.string().max(100).optional(),
@@ -100,6 +101,36 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
+  // Check slot type — mesa_fija requires an approved request
+  const { data: slotData } = await supabase
+    .from('storage_slots')
+    .select('slot_type')
+    .eq('id', parsed.data.slot_id)
+    .single()
+
+  if (slotData?.slot_type === 'mesa_fija') {
+    const { data: approvedRequest } = await supabase
+      .from('mesa_fija_requests')
+      .select('id')
+      .eq('slot_id', parsed.data.slot_id)
+      .eq('requester_id', user.sub)
+      .eq('status', 'approved')
+      .single()
+
+    if (!approvedRequest) {
+      return Response.json(
+        { error: 'Se requiere aprobación de la junta para usar esta mesa fija', code: 'MESA_FIJA_NOT_APPROVED' },
+        { status: 403 }
+      )
+    }
+
+    // Mark request as assigned
+    await supabase
+      .from('mesa_fija_requests')
+      .update({ status: 'assigned', assigned_at: new Date().toISOString() })
+      .eq('id', approvedRequest.id)
+  }
+
   // Check slot is free
   const { data: existingGame } = await supabase
     .from('stored_games')
@@ -118,6 +149,7 @@ export async function POST(request: NextRequest) {
       slot_id: parsed.data.slot_id,
       game_id: parsed.data.game_id,
       registered_by: user.sub,
+      responsible_user_id: parsed.data.responsible_user_id ?? null,
       status: 'active',
       scenario_notes: parsed.data.scenario_notes ?? null,
       expected_end_date: parsed.data.expected_end_date ?? null,

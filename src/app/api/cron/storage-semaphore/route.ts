@@ -1,10 +1,13 @@
 import type { NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { Tables } from '@/types/database'
+import storageConfig from '@/config/storage'
 import {
   sendStorageWarningNotification,
   sendStorageCriticalNotification,
   sendStorageExpiredNotification,
+  sendMesaFijaYourTurnNotification,
+  sendMesaFijaExpiredNotification,
 } from '@/lib/telegram/bot'
 
 async function checkCronRateLimit(key: string): Promise<boolean> {
@@ -42,8 +45,14 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Run the PostgreSQL function to update all statuses
-  const { error: rpcError } = await supabase.rpc('compute_storage_statuses')
+  const { lifecycle, mesaFijaApprovalHours } = storageConfig
+
+  // Run the PostgreSQL function with configurable thresholds
+  const { error: rpcError } = await supabase.rpc('compute_storage_statuses', {
+    warning_days: lifecycle.warningDays,
+    critical_days: lifecycle.criticalDays,
+    expired_days: lifecycle.expiredDays,
+  })
   if (rpcError) {
     console.error('compute_storage_statuses error:', rpcError)
   }
@@ -94,8 +103,131 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── Mesa fija queue management ──────────────────────────────────────────
+
+  // 1. Expire approved requests that weren't claimed in time
+  const { data: expiredRequests } = await supabase
+    .from('mesa_fija_requests')
+    .select('id, requester_id, game_id')
+    .eq('status', 'approved')
+    .lt('expires_at', new Date().toISOString())
+
+  for (const mfr of expiredRequests ?? []) {
+    const { data: expiredMfr } = await supabase
+      .from('mesa_fija_requests')
+      .update({ status: 'expired' })
+      .eq('id', mfr.id)
+      .select()
+      .single()
+
+    if (!expiredMfr) continue
+
+    try {
+      const { data: requester } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', mfr.requester_id)
+        .single()
+      const { data: gameData } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', mfr.game_id)
+        .single()
+      if (requester) {
+        await sendMesaFijaExpiredNotification(requester, expiredMfr, gameData ?? null)
+      }
+    } catch (e) {
+      console.error(`[cron] Failed to notify mesa_fija expiry for ${mfr.id}:`, e)
+    }
+  }
+
+  // 2. When a mesa_fija stored_game completes or is evicted, auto-promote next in queue
+  // First get all mesa_fija slot IDs
+  const { data: mesaFijaSlots } = await supabase
+    .from('storage_slots')
+    .select('id')
+    .eq('slot_type', 'mesa_fija')
+    .eq('is_active', true)
+
+  const mesaFijaSlotIds = (mesaFijaSlots ?? []).map((s) => s.id)
+
+  const { data: completedMesaGames } = mesaFijaSlotIds.length > 0
+    ? await supabase
+        .from('stored_games')
+        .select('slot_id')
+        .in('status', ['completed', 'evicted'])
+        .in('slot_id', mesaFijaSlotIds)
+        // Only games completed/evicted in the last 20 hours (since cron runs every ~20h)
+        .gt('completed_at', new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString())
+    : { data: [] }
+
+  const processedSlots = new Set<string>()
+
+  for (const sg of completedMesaGames ?? []) {
+    if (!sg.slot_id) continue
+    if (processedSlots.has(sg.slot_id)) continue
+
+    // Check if the slot is now free
+    const { data: activeGame } = await supabase
+      .from('stored_games')
+      .select('id')
+      .eq('slot_id', sg.slot_id)
+      .in('status', ['active', 'warning', 'critical', 'expired'])
+      .single()
+
+    if (activeGame) continue // still occupied
+
+    // Find next queued request for this slot (fetch separately to avoid join type issues)
+    const { data: nextRequests } = await supabase
+      .from('mesa_fija_requests')
+      .select('id, requester_id, game_id')
+      .eq('slot_id', sg.slot_id)
+      .eq('status', 'queued')
+      .order('queue_position', { ascending: true })
+      .limit(1)
+
+    const nextRequest = nextRequests?.[0]
+    if (!nextRequest) continue
+
+    // Auto-promote: queued → approved with 48h expiry
+    const { data: promoted } = await supabase
+      .from('mesa_fija_requests')
+      .update({
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + mesaFijaApprovalHours * 60 * 60 * 1000).toISOString(),
+      })
+      .eq('id', nextRequest.id)
+      .select()
+      .single()
+
+    processedSlots.add(sg.slot_id)
+
+    if (promoted) {
+      try {
+        const { data: requester } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', nextRequest.requester_id)
+          .single()
+        const { data: gameData } = await supabase
+          .from('games')
+          .select('*')
+          .eq('id', nextRequest.game_id)
+          .single()
+        if (requester) {
+          await sendMesaFijaYourTurnNotification(requester, promoted, gameData ?? null)
+        }
+      } catch (e) {
+        console.error(`[cron] Failed to notify mesa_fija promotion for ${nextRequest.id}:`, e)
+      }
+    }
+  }
+
   return Response.json({
     updated: alertGames?.length ?? 0,
     notified,
+    mesa_fija_expired: expiredRequests?.length ?? 0,
+    mesa_fija_promoted: processedSlots.size,
   })
 }

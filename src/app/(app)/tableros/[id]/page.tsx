@@ -25,9 +25,10 @@ interface StoredGameSession {
 interface StoredGameDetail {
   id: string; status: string; turn_info: string | null; current_state_notes: string | null
   scenario_notes: string | null; last_session_at: string; days_since_last: number | null
-  game_id: string | null; slot_id: string | null
+  game_id: string | null; slot_id: string | null; responsible_user_id: string | null
   games: Game | null
   storage_slots: { id: string; slot_number: number; label: string | null } | null
+  responsible_user: { id: string; display_name: string; avatar_url: string | null } | null
   players: StoredGamePlayer[]
   sessions: StoredGameSession[]
 }
@@ -146,6 +147,15 @@ export default function TableroDetailPage() {
         {game.turn_info && <div><p className="text-xs text-slate-500 mb-1">A quién le toca</p><p className="text-sm text-slate-200">{game.turn_info}</p></div>}
         {game.current_state_notes && <div><p className="text-xs text-slate-500 mb-1">Notas del estado</p><p className="text-sm text-slate-200">{game.current_state_notes}</p></div>}
         {game.scenario_notes && <div><p className="text-xs text-slate-500 mb-1">Escenario</p><p className="text-sm text-slate-200">{game.scenario_notes}</p></div>}
+
+        {game.responsible_user && (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Responsable de partida</p>
+            <div className="flex items-center gap-1.5 bg-indigo-950 border border-indigo-800 rounded-full px-2.5 py-1 w-fit">
+              <span className="text-xs font-medium text-indigo-200">{game.responsible_user.display_name}</span>
+            </div>
+          </div>
+        )}
 
         <div>
           <p className="text-xs text-slate-500 mb-1">Jugadores</p>

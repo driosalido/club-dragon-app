@@ -27,26 +27,32 @@ interface PlayerEntry {
 
 interface Props {
   slots: SlotData[]
+  preselectedSlot: SlotData | null
+  preselectedGame?: Game | null
   onClose: () => void
   onCreated: () => void
 }
 
-export default function NuevoTableroSheet({ slots, onClose, onCreated }: Props) {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedGame, onClose, onCreated }: Props) {
+  const initialStep = preselectedSlot && preselectedGame ? 3 : preselectedSlot ? 2 : 1
+  const [step, setStep] = useState<1 | 2 | 3>(initialStep)
 
   // Step 1
-  const [selectedSlot, setSelectedSlot] = useState<SlotData | null>(null)
+  const [selectedSlot, setSelectedSlot] = useState<SlotData | null>(preselectedSlot)
 
   // Step 2
-  const [gameSearch, setGameSearch] = useState('')
+  const [gameSearch, setGameSearch] = useState(preselectedGame?.name ?? '')
   const [gameResults, setGameResults] = useState<Game[]>([])
   const [gameSearching, setGameSearching] = useState(false)
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
+  const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame ?? null)
   const [bggId, setBggId] = useState('')
   const [showBggField, setShowBggField] = useState(false)
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Step 3
+  const [responsable, setResponsable] = useState<UserResult | null>(null)
+  const [respSearch, setRespSearch] = useState('')
+  const [respResults, setRespResults] = useState<UserResult[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [userResults, setUserResults] = useState<UserResult[]>([])
   const [players, setPlayers] = useState<PlayerEntry[]>([])
@@ -100,6 +106,13 @@ export default function NuevoTableroSheet({ slots, onClose, onCreated }: Props) 
     }
   }
 
+  async function searchResponsable(q: string) {
+    setRespSearch(q)
+    if (!q.trim()) { setRespResults([]); return }
+    const res = await fetch(`/api/users?q=${encodeURIComponent(q)}`)
+    if (res.ok) setRespResults(await res.json() as UserResult[])
+  }
+
   async function searchUsers(q: string) {
     setUserSearch(q)
     if (!q.trim()) { setUserResults([]); return }
@@ -123,20 +136,27 @@ export default function NuevoTableroSheet({ slots, onClose, onCreated }: Props) 
   }
 
   async function handleSubmit() {
-    if (!selectedSlot || !selectedGame || players.length === 0) return
+    if (!selectedSlot || !selectedGame || !responsable) return
     setSubmitting(true)
     setError(null)
     try {
+      // Build players list: responsable first (always included), then additional
+      const additionalIds = new Set(players.map((p) => p.user.id))
+      const allPlayers = [
+        { user_id: responsable.id, faction_or_side: undefined },
+        ...players
+          .filter((p) => p.user.id !== responsable.id)
+          .map((p) => ({ user_id: p.user.id, faction_or_side: p.faction_or_side || undefined })),
+      ]
+      void additionalIds
       const res = await fetch('/api/storage/stored-games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slot_id: selectedSlot.id,
           game_id: selectedGame.id,
-          players: players.map((p) => ({
-            user_id: p.user.id,
-            faction_or_side: p.faction_or_side || undefined,
-          })),
+          responsible_user_id: responsable.id,
+          players: allPlayers,
           scenario_notes: scenarioNotes || undefined,
           expected_end_date: expectedEndDate || undefined,
         }),
@@ -280,16 +300,52 @@ export default function NuevoTableroSheet({ slots, onClose, onCreated }: Props) 
             </>
           )}
 
-          {/* Step 3: Add players */}
+          {/* Step 3: Responsable + players */}
           {step === 3 && (
             <>
               <div className="bg-slate-800 rounded-lg px-3 py-2 text-sm text-slate-400 mb-2">
                 <span className="text-white">{selectedGame?.name}</span> · Slot {selectedSlot?.slot_number}
               </div>
 
-              {/* Player search */}
+              {/* Responsable de partida */}
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Añadir jugador</label>
+                <label className="block text-xs text-slate-400 mb-1">Responsable de partida <span className="text-red-400">*</span></label>
+                {responsable ? (
+                  <div className="flex items-center gap-2 bg-slate-800 border border-indigo-700 rounded-lg px-3 py-2">
+                    <span className="text-sm text-white flex-1">{responsable.display_name}</span>
+                    <button onClick={() => setResponsable(null)} className="text-slate-500 hover:text-red-400">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      value={respSearch}
+                      onChange={(e) => searchResponsable(e.target.value)}
+                      placeholder="Buscar por nombre..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    />
+                    {respResults.length > 0 && (
+                      <ul className="bg-slate-800 border border-slate-700 rounded-lg mt-1 divide-y divide-slate-700 max-h-36 overflow-y-auto">
+                        {respResults.map((u) => (
+                          <li key={u.id}>
+                            <button type="button"
+                              onClick={() => { setResponsable(u); setRespSearch(''); setRespResults([]) }}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2">
+                              <Plus size={14} className="text-indigo-400" />
+                              {u.display_name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Jugadores adicionales */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Jugadores adicionales (opcional)</label>
                 <input
                   value={userSearch}
                   onChange={(e) => searchUsers(e.target.value)}
@@ -297,73 +353,60 @@ export default function NuevoTableroSheet({ slots, onClose, onCreated }: Props) 
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
                 />
                 {userResults.length > 0 && (
-                  <ul className="bg-slate-800 border border-slate-700 rounded-lg mt-1 divide-y divide-slate-700 max-h-40 overflow-y-auto">
-                    {userResults.map((user) => (
-                      <li key={user.id}>
-                        <button
-                          type="button"
-                          onClick={() => addPlayer(user)}
-                          className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
-                        >
-                          <Plus size={14} className="text-indigo-400" />
-                          {user.display_name}
-                        </button>
-                      </li>
-                    ))}
+                  <ul className="bg-slate-800 border border-slate-700 rounded-lg mt-1 divide-y divide-slate-700 max-h-36 overflow-y-auto">
+                    {userResults
+                      .filter((u) => u.id !== responsable?.id)
+                      .map((u) => (
+                        <li key={u.id}>
+                          <button type="button" onClick={() => addPlayer(u)}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2">
+                            <Plus size={14} className="text-indigo-400" />
+                            {u.display_name}
+                          </button>
+                        </li>
+                      ))}
                   </ul>
                 )}
+                {players.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {players.map((p) => (
+                      <div key={p.user.id} className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2">
+                        <span className="text-sm text-white flex-shrink-0">{p.user.display_name}</span>
+                        <input
+                          value={p.faction_or_side}
+                          onChange={(e) => updateFaction(p.user.id, e.target.value)}
+                          placeholder="Facción/bando"
+                          className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500"
+                        />
+                        <button onClick={() => removePlayer(p.user.id)} className="text-slate-500 hover:text-red-400 flex-shrink-0">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {/* Players list */}
-              {players.length > 0 && (
-                <div className="space-y-2">
-                  {players.map((p) => (
-                    <div key={p.user.id} className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2">
-                      <span className="text-sm text-white flex-shrink-0">{p.user.display_name}</span>
-                      <input
-                        value={p.faction_or_side}
-                        onChange={(e) => updateFaction(p.user.id, e.target.value)}
-                        placeholder="Facción/bando"
-                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500"
-                      />
-                      <button onClick={() => removePlayer(p.user.id)} className="text-slate-500 hover:text-red-400 flex-shrink-0">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/* Optional fields */}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Notas del escenario (opcional)</label>
-                <textarea
-                  rows={2}
-                  value={scenarioNotes}
-                  onChange={(e) => setScenarioNotes(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white resize-none text-sm"
-                />
+                <textarea rows={2} value={scenarioNotes} onChange={(e) => setScenarioNotes(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white resize-none text-sm" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Fecha estimada de fin (opcional)</label>
-                <input
-                  type="date"
-                  value={expectedEndDate}
-                  min={new Date().toISOString().slice(0, 10)}
+                <input type="date" value={expectedEndDate} min={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setExpectedEndDate(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
-                />
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white" />
               </div>
 
               {error && (
-                <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">
-                  {error}
-                </div>
+                <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
               )}
 
               <button
                 onClick={handleSubmit}
-                disabled={submitting || players.length === 0}
+                disabled={submitting || !responsable}
                 className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl py-3 font-semibold"
               >
                 {submitting ? 'Registrando...' : 'Registrar tablero'}

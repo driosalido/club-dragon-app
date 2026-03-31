@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 const PatchUserSchema = z.object({
   display_name: z.string().min(1).max(100).optional(),
   bio: z.string().max(500).optional(),
+  member_number: z.number().int().positive().nullable().optional(),
 })
 
 export async function GET(request: NextRequest) {

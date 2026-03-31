@@ -274,7 +274,14 @@ describe('POST /api/cron/storage-semaphore', () => {
         if (table === 'games') {
           return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { name: 'Testgame' }, error: null }) }) }
         }
-        return { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [], error: null }) }
+        // mesa_fija_requests and storage_slots — return empty to skip mesa_fija processing
+        return {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockResolvedValue({ data: [], error: null }),
+          eq: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockResolvedValue({ data: [], error: null }),
+          gt: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }
       },
     } as never)
 
@@ -322,7 +329,14 @@ describe('POST /api/cron/storage-semaphore', () => {
         if (table === 'games') {
           return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { name: 'Testgame' }, error: null }) }) }
         }
-        return { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [], error: null }) }
+        // mesa_fija_requests and storage_slots — return empty to skip mesa_fija processing
+        return {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockResolvedValue({ data: [], error: null }),
+          eq: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockResolvedValue({ data: [], error: null }),
+          gt: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }
       },
     } as never)
 
@@ -345,6 +359,12 @@ describe('POST /api/storage/stored-games slot validation', () => {
 
     vi.mocked(createServiceClient).mockReturnValue({
       from: (table: string) => {
+        if (table === 'storage_slots') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { slot_type: 'pizzero' }, error: null }) }),
+          }
+        }
         if (table === 'stored_games') {
           return {
             select: vi.fn().mockReturnThis(),

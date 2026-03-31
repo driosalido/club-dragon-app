@@ -15,9 +15,10 @@ interface TelegramUser {
 
 interface Props {
   botUsername: string
+  onError?: (message: string) => void
 }
 
-export default function TelegramLoginButton({ botUsername }: Props) {
+export default function TelegramLoginButton({ botUsername, onError }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -37,7 +38,12 @@ export default function TelegramLoginButton({ botUsername }: Props) {
         document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
         router.push('/tableros')
       } else {
-        console.error('Authentication failed')
+        const body = await res.json().catch(() => ({})) as { code?: string }
+        if (body.code === 'NOT_A_MEMBER') {
+          onError?.('Solo pueden acceder miembros del grupo "Club Dragon Oficial" en Telegram.')
+        } else {
+          onError?.('Error al autenticar. Inténtalo de nuevo.')
+        }
       }
     }
 
@@ -46,7 +52,7 @@ export default function TelegramLoginButton({ botUsername }: Props) {
     script.setAttribute('data-telegram-login', botUsername)
     script.setAttribute('data-size', 'large')
     script.setAttribute('data-onauth', `${callbackName}(user)`)
-    script.setAttribute('data-request-access', 'write')
+    // data-request-access: 'write' removed — it silently blocks login for users who haven't started the bot
     script.async = true
 
     if (containerRef.current) {

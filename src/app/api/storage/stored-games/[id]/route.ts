@@ -26,7 +26,7 @@ export async function GET(
 
   const { data: storedGame, error } = await supabase
     .from('stored_games')
-    .select('*, games(id, name, category, thumbnail_url, min_players, max_players, avg_duration_min), storage_slots(id, slot_number, label, max_board_size)')
+    .select('*, games(id, name, category, thumbnail_url, min_players, max_players, avg_duration_min), storage_slots(id, slot_number, label, max_board_size), responsible_user:users!responsible_user_id(id, display_name, avatar_url)')
     .eq('id', id)
     .single()
 

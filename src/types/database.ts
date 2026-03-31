@@ -21,6 +21,7 @@ export type Database = {
           is_active: boolean
           created_at: string
           last_seen_at: string | null
+          member_number: number | null
         }
         Insert: {
           id?: string
@@ -33,6 +34,7 @@ export type Database = {
           is_active?: boolean
           created_at?: string
           last_seen_at?: string | null
+          member_number?: number | null
         }
         Update: {
           id?: string
@@ -45,6 +47,7 @@ export type Database = {
           is_active?: boolean
           created_at?: string
           last_seen_at?: string | null
+          member_number?: number | null
         }
         Relationships: []
       }
@@ -194,6 +197,8 @@ export type Database = {
           notes: string | null
           is_active: boolean
           max_board_size: 'small' | 'medium' | 'large' | 'xl' | null
+          slot_type: 'pizzero' | 'mesa_fija'
+          pizzero: 'A' | 'B' | 'C' | null
         }
         Insert: {
           id?: string
@@ -202,6 +207,8 @@ export type Database = {
           notes?: string | null
           is_active?: boolean
           max_board_size?: 'small' | 'medium' | 'large' | 'xl' | null
+          slot_type?: 'pizzero' | 'mesa_fija'
+          pizzero?: 'A' | 'B' | 'C' | null
         }
         Update: {
           id?: string
@@ -210,6 +217,59 @@ export type Database = {
           notes?: string | null
           is_active?: boolean
           max_board_size?: 'small' | 'medium' | 'large' | 'xl' | null
+          slot_type?: 'pizzero' | 'mesa_fija'
+          pizzero?: 'A' | 'B' | 'C' | null
+        }
+        Relationships: []
+      }
+      mesa_fija_requests: {
+        Row: {
+          id: string
+          slot_id: string | null
+          requester_id: string
+          game_id: string
+          status: 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
+          queue_position: number
+          reason: string | null
+          admin_notes: string | null
+          reviewed_by: string | null
+          requested_at: string
+          reviewed_at: string | null
+          assigned_at: string | null
+          expires_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          slot_id?: string | null
+          requester_id: string
+          game_id: string
+          status?: 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
+          queue_position: number
+          reason?: string | null
+          admin_notes?: string | null
+          reviewed_by?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          assigned_at?: string | null
+          expires_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          slot_id?: string | null
+          requester_id?: string
+          game_id?: string
+          status?: 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
+          queue_position?: number
+          reason?: string | null
+          admin_notes?: string | null
+          reviewed_by?: string | null
+          requested_at?: string
+          reviewed_at?: string | null
+          assigned_at?: string | null
+          expires_at?: string | null
+          created_at?: string
         }
         Relationships: []
       }
@@ -219,6 +279,7 @@ export type Database = {
           slot_id: string | null
           game_id: string | null
           registered_by: string | null
+          responsible_user_id: string | null
           status: 'active' | 'warning' | 'critical' | 'expired' | 'completed' | 'evicted'
           started_at: string
           last_session_at: string
@@ -233,6 +294,7 @@ export type Database = {
           slot_id?: string | null
           game_id?: string | null
           registered_by?: string | null
+          responsible_user_id?: string | null
           status?: 'active' | 'warning' | 'critical' | 'expired' | 'completed' | 'evicted'
           started_at?: string
           last_session_at?: string
@@ -247,6 +309,7 @@ export type Database = {
           slot_id?: string | null
           game_id?: string | null
           registered_by?: string | null
+          responsible_user_id?: string | null
           status?: 'active' | 'warning' | 'critical' | 'expired' | 'completed' | 'evicted'
           started_at?: string
           last_session_at?: string
@@ -372,7 +435,11 @@ export type Database = {
         Returns: boolean
       }
       compute_storage_statuses: {
-        Args: Record<PropertyKey, never>
+        Args: {
+          warning_days?: number
+          critical_days?: number
+          expired_days?: number
+        }
         Returns: undefined
       }
     }
