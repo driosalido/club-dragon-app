@@ -15,6 +15,12 @@ interface Game {
   name: string
 }
 
+interface BggResult {
+  bgg_id: number
+  name: string
+  year: number | null
+}
+
 interface Props {
   slot: SlotData
   onClose: () => void
@@ -23,11 +29,10 @@ interface Props {
 
 export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Props) {
   const [gameSearch, setGameSearch] = useState('')
-  const [gameResults, setGameResults] = useState<Game[]>([])
+  const [localResults, setLocalResults] = useState<Game[]>([])
+  const [bggResults, setBggResults] = useState<BggResult[]>([])
   const [gameSearching, setGameSearching] = useState(false)
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
-  const [bggId, setBggId] = useState('')
-  const [showBggField, setShowBggField] = useState(false)
   const [reason, setReason] = useState('')
   const [expectedDurationMonths, setExpectedDurationMonths] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -40,12 +45,16 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
     setGameSearch(q)
     setSelectedGame(null)
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    if (!q.trim()) { setGameResults([]); return }
+    if (!q.trim()) { setLocalResults([]); setBggResults([]); return }
     searchDebounce.current = setTimeout(async () => {
       setGameSearching(true)
       try {
-        const res = await fetch(`/api/games?q=${encodeURIComponent(q)}`)
-        if (res.ok) setGameResults(await res.json() as Game[])
+        const [localRes, bggRes] = await Promise.all([
+          fetch(`/api/games?q=${encodeURIComponent(q)}`),
+          fetch(`/api/games/bgg/search?q=${encodeURIComponent(q)}`),
+        ])
+        if (localRes.ok) setLocalResults(await localRes.json() as Game[])
+        if (bggRes.ok) setBggResults(await bggRes.json() as BggResult[])
       } finally {
         setGameSearching(false)
       }
@@ -55,25 +64,44 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
   function selectGame(game: Game) {
     setSelectedGame(game)
     setGameSearch(game.name)
-    setGameResults([])
+    setLocalResults([])
+    setBggResults([])
+  }
+
+  async function selectBggGame(result: BggResult) {
+    setGameSearching(true)
+    setLocalResults([])
+    setBggResults([])
+    try {
+      const res = await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: result.name, bgg_id: result.bgg_id }),
+      })
+      if (res.ok) {
+        const game = await res.json() as Game
+        setSelectedGame(game)
+        setGameSearch(game.name)
+      }
+    } finally {
+      setGameSearching(false)
+    }
   }
 
   async function createAndSelectGame() {
     if (!gameSearch.trim()) return
     setGameSearching(true)
     try {
-      const body: Record<string, unknown> = { name: gameSearch.trim() }
-      const parsedBgg = bggId.trim() ? parseInt(bggId.trim()) : NaN
-      if (!isNaN(parsedBgg) && parsedBgg > 0) body.bgg_id = parsedBgg
       const res = await fetch('/api/games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ name: gameSearch.trim() }),
       })
       if (res.ok) {
         const game = await res.json() as Game
         setSelectedGame(game)
-        setGameResults([])
+        setLocalResults([])
+        setBggResults([])
       }
     } finally {
       setGameSearching(false)
@@ -112,6 +140,7 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
   }
 
   const slotName = slot.label?.trim() || `Mesa ${slot.slot_number}`
+  const hasResults = localResults.length > 0 || bggResults.length > 0
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -124,7 +153,6 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
           </button>
         </div>
 
-        {/* Slot info */}
         <div className="bg-slate-800 rounded-xl p-3 mb-6">
           <p className="text-sm text-slate-400">Mesa solicitada</p>
           <p className="text-base font-medium text-white">{slotName}</p>
@@ -134,7 +162,6 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
         </div>
 
         {requestSubmitted ? (
-          /* Success state */
           <div className="text-center py-6">
             <div className="text-4xl mb-4">✅</div>
             <h3 className="text-lg font-semibold text-white mb-2">¡Solicitud enviada!</h3>
@@ -153,18 +180,17 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
           </div>
         ) : (
           <>
-            {/* Game search */}
             <div className="mb-4">
               <label className="block text-sm text-slate-400 mb-2">Juego</label>
               <input
                 type="text"
                 placeholder="Buscar juego..."
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              data-1p-ignore="true"
-              data-lpignore="true"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                data-1p-ignore="true"
+                data-lpignore="true"
                 value={gameSearch}
                 onChange={(e) => handleGameInput(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
@@ -172,22 +198,40 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
               {gameSearching && (
                 <p className="text-xs text-slate-500 mt-1 ml-1">Buscando...</p>
               )}
-              {gameResults.length > 0 && (
-                <ul className="mt-2 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-700">
-                  {gameResults.map((g) => (
+              {!selectedGame && hasResults && (
+                <ul className="mt-2 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-700 max-h-64 overflow-y-auto">
+                  {localResults.map((g) => (
                     <li key={g.id}>
                       <button
                         onClick={() => selectGame(g)}
                         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-700 transition-colors"
                       >
                         <span className="text-sm text-white">{g.name}</span>
-                        <ChevronRight size={16} className="text-slate-500" />
+                        <span className="text-xs text-green-500 ml-2 shrink-0">en club</span>
                       </button>
                     </li>
                   ))}
+                  {bggResults
+                    .filter((b) => !localResults.some((l) => l.name.toLowerCase() === b.name.toLowerCase()))
+                    .map((b) => (
+                      <li key={b.bgg_id}>
+                        <button
+                          onClick={() => selectBggGame(b)}
+                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-700 transition-colors"
+                        >
+                          <span className="text-sm text-white">
+                            {b.name}{b.year ? <span className="text-slate-500 ml-1">({b.year})</span> : null}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <span className="text-xs text-indigo-400">BGG</span>
+                            <ChevronRight size={14} className="text-slate-500" />
+                          </div>
+                        </button>
+                      </li>
+                    ))}
                 </ul>
               )}
-              {!selectedGame && gameSearch.trim() && !gameSearching && (
+              {!selectedGame && gameSearch.trim() && !gameSearching && !hasResults && (
                 <button
                   onClick={createAndSelectGame}
                   className="mt-2 w-full text-left px-4 py-2 bg-slate-800 border border-dashed border-slate-600 rounded-xl text-sm text-indigo-400 hover:border-indigo-500 transition-colors"
@@ -195,32 +239,11 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
                   + Usar &ldquo;{gameSearch.trim()}&rdquo;
                 </button>
               )}
-              {!selectedGame && gameSearch.trim() && (
-                <div className="mt-2">
-                  {!showBggField ? (
-                    <button
-                      onClick={() => setShowBggField(true)}
-                      className="text-xs text-slate-500 hover:text-slate-300 underline"
-                    >
-                      Añadir ID de BGG (opcional)
-                    </button>
-                  ) : (
-                    <input
-                      type="number"
-                      placeholder="ID de BoardGameGeek"
-                      value={bggId}
-                      onChange={(e) => setBggId(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm"
-                    />
-                  )}
-                </div>
-              )}
               {selectedGame && (
                 <p className="text-xs text-green-400 mt-1 ml-1">✓ {selectedGame.name}</p>
               )}
             </div>
 
-            {/* Estimated duration in months (optional) */}
             <div className="mb-4">
               <label className="block text-sm text-slate-400 mb-2">Duración estimada (meses) <span className="text-slate-600">(opcional)</span></label>
               <input
@@ -236,7 +259,6 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
               />
             </div>
 
-            {/* Reason (optional) */}
             <div className="mb-6">
               <label className="block text-sm text-slate-400 mb-2">Motivo <span className="text-slate-600">(opcional)</span></label>
               <textarea

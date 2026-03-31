@@ -14,6 +14,12 @@ interface Game {
   name: string
 }
 
+interface BggResult {
+  bgg_id: number
+  name: string
+  year: number | null
+}
+
 interface UserResult {
   id: string
   display_name: string
@@ -42,18 +48,16 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
 
   // Step 2
   const [gameSearch, setGameSearch] = useState(preselectedGame?.name ?? '')
-  const [gameResults, setGameResults] = useState<Game[]>([])
+  const [localResults, setLocalResults] = useState<Game[]>([])
+  const [bggResults, setBggResults] = useState<BggResult[]>([])
   const [gameSearching, setGameSearching] = useState(false)
   const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame ?? null)
-  const [bggId, setBggId] = useState('')
-  const [showBggField, setShowBggField] = useState(false)
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Step 3
   const [responsable, setResponsable] = useState<UserResult | null>(null)
   const [respSearch, setRespSearch] = useState('')
 
-  // Auto-set current user as default responsable
   useEffect(() => {
     fetch('/api/users/me')
       .then((r) => r.json() as Promise<{ id: string; display_name: string; avatar_url: string | null }>)
@@ -75,12 +79,16 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
     setGameSearch(q)
     setSelectedGame(null)
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    if (!q.trim()) { setGameResults([]); return }
+    if (!q.trim()) { setLocalResults([]); setBggResults([]); return }
     searchDebounce.current = setTimeout(async () => {
       setGameSearching(true)
       try {
-        const res = await fetch(`/api/games?q=${encodeURIComponent(q)}`)
-        if (res.ok) setGameResults(await res.json() as Game[])
+        const [localRes, bggRes] = await Promise.all([
+          fetch(`/api/games?q=${encodeURIComponent(q)}`),
+          fetch(`/api/games/bgg/search?q=${encodeURIComponent(q)}`),
+        ])
+        if (localRes.ok) setLocalResults(await localRes.json() as Game[])
+        if (bggRes.ok) setBggResults(await bggRes.json() as BggResult[])
       } finally {
         setGameSearching(false)
       }
@@ -90,25 +98,44 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
   function selectGame(game: Game) {
     setSelectedGame(game)
     setGameSearch(game.name)
-    setGameResults([])
+    setLocalResults([])
+    setBggResults([])
+  }
+
+  async function selectBggGame(result: BggResult) {
+    setGameSearching(true)
+    setLocalResults([])
+    setBggResults([])
+    try {
+      const res = await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: result.name, bgg_id: result.bgg_id }),
+      })
+      if (res.ok) {
+        const game = await res.json() as Game
+        setSelectedGame(game)
+        setGameSearch(game.name)
+      }
+    } finally {
+      setGameSearching(false)
+    }
   }
 
   async function createAndSelectGame() {
     if (!gameSearch.trim()) return
     setGameSearching(true)
     try {
-      const body: Record<string, unknown> = { name: gameSearch.trim() }
-      const parsedBgg = bggId.trim() ? parseInt(bggId.trim()) : NaN
-      if (!isNaN(parsedBgg) && parsedBgg > 0) body.bgg_id = parsedBgg
       const res = await fetch('/api/games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ name: gameSearch.trim() }),
       })
       if (res.ok) {
         const game = await res.json() as Game
         setSelectedGame(game)
-        setGameResults([])
+        setLocalResults([])
+        setBggResults([])
       }
     } finally {
       setGameSearching(false)
@@ -149,15 +176,12 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
     setSubmitting(true)
     setError(null)
     try {
-      // Build players list: responsable first (always included), then additional
-      const additionalIds = new Set(players.map((p) => p.user.id))
       const allPlayers = [
         { user_id: responsable.id, faction_or_side: undefined },
         ...players
           .filter((p) => p.user.id !== responsable.id)
           .map((p) => ({ user_id: p.user.id, faction_or_side: p.faction_or_side || undefined })),
       ]
-      void additionalIds
       const res = await fetch('/api/storage/stored-games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,6 +205,8 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
       setSubmitting(false)
     }
   }
+
+  const hasResults = localResults.length > 0 || bggResults.length > 0
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50">
@@ -252,50 +278,36 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                 />
                 {gameSearching && <p className="text-xs text-slate-500 mt-1">Buscando...</p>}
 
-                {/* Local DB results */}
-                {!selectedGame && gameResults.length > 0 && (
-                  <ul className="bg-slate-800 border border-slate-700 rounded-lg mt-1 divide-y divide-slate-700 max-h-48 overflow-y-auto">
-                    {gameResults.map((game) => (
+                {!selectedGame && hasResults && (
+                  <ul className="bg-slate-800 border border-slate-700 rounded-lg mt-1 divide-y divide-slate-700 max-h-64 overflow-y-auto">
+                    {localResults.map((game) => (
                       <li key={game.id}>
                         <button type="button" onClick={() => selectGame(game)}
                           className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center justify-between">
                           <span>{game.name}</span>
-                          <span className="text-xs text-green-500 ml-2">en club</span>
+                          <span className="text-xs text-green-500 ml-2 shrink-0">en club</span>
                         </button>
                       </li>
                     ))}
+                    {bggResults
+                      .filter((b) => !localResults.some((l) => l.name.toLowerCase() === b.name.toLowerCase()))
+                      .map((b) => (
+                        <li key={b.bgg_id}>
+                          <button type="button" onClick={() => selectBggGame(b)}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center justify-between">
+                            <span>{b.name}{b.year ? <span className="text-slate-500 ml-1">({b.year})</span> : null}</span>
+                            <span className="text-xs text-indigo-400 ml-2 shrink-0">BGG</span>
+                          </button>
+                        </li>
+                      ))}
                   </ul>
                 )}
 
-                {/* Selected game indicator */}
                 {selectedGame && (
                   <p className="text-xs text-green-400 mt-1">✓ {selectedGame.name}</p>
                 )}
               </div>
 
-              {/* Optional BGG ID */}
-              {!selectedGame && gameSearch.trim() && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowBggField((v) => !v)}
-                    className="text-xs text-slate-500 hover:text-slate-300 underline"
-                  >
-                    {showBggField ? 'Ocultar' : 'Añadir ID de BGG (opcional)'}
-                  </button>
-                  {showBggField && (
-                    <input
-                      type="number"
-                      value={bggId}
-                      onChange={(e) => setBggId(e.target.value)}
-                      placeholder="Ej: 37111"
-                      className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Continue / create button */}
               {selectedGame ? (
                 <button
                   onClick={() => setStep(3)}
@@ -304,13 +316,14 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                   Continuar
                 </button>
               ) : (
-                <button
-                  onClick={createAndSelectGame}
-                  disabled={!gameSearch.trim() || gameSearching}
-                  className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white rounded-xl py-3 font-semibold"
-                >
-                  {gameSearching ? 'Registrando...' : `Usar "${gameSearch.trim() || '…'}"`}
-                </button>
+                !gameSearching && gameSearch.trim() && !hasResults && (
+                  <button
+                    onClick={createAndSelectGame}
+                    className="w-full bg-slate-700 hover:bg-slate-600 text-white rounded-xl py-3 font-semibold"
+                  >
+                    Usar &ldquo;{gameSearch.trim()}&rdquo;
+                  </button>
+                )
               )}
             </>
           )}
@@ -322,7 +335,6 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                 <span className="text-white">{selectedGame?.name}</span> · Slot {selectedSlot?.slot_number}
               </div>
 
-              {/* Responsable de partida */}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Responsable de partida <span className="text-red-400">*</span></label>
                 {responsable ? (
@@ -358,7 +370,6 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                 )}
               </div>
 
-              {/* Jugadores adicionales */}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Jugadores adicionales (opcional)</label>
                 <input
@@ -402,7 +413,6 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                 )}
               </div>
 
-              {/* Optional fields */}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Notas del escenario (opcional)</label>
                 <textarea rows={2} value={scenarioNotes} onChange={(e) => setScenarioNotes(e.target.value)}
