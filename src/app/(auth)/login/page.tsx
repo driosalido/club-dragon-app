@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Script from 'next/script'
 import TelegramMiniAppAuth from '@/components/TelegramMiniAppAuth'
 import TelegramLinkAuth from '@/components/TelegramLinkAuth'
+import PoweredByBGG from '@/components/PoweredByBGG'
 
 export default function LoginPage() {
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'ClubDragonBot'
@@ -86,6 +87,8 @@ export default function LoginPage() {
           <p className="text-xs text-slate-600 text-center">
             Solo para socios del Club Dragón Madrid
           </p>
+
+          <PoweredByBGG />
         </div>
       </main>
     </>

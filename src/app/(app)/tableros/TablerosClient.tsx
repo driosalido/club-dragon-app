@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Plus, Users } from 'lucide-react'
 import NuevoTableroSheet from './NuevoTableroSheet'
 import SolicitarMesaFijaSheet from './SolicitarMesaFijaSheet'
@@ -171,12 +172,25 @@ function SlotCard({ slot, onFreeClick }: { slot: SlotData; onFreeClick: (s: Slot
             <p className="text-xs text-slate-400">{slot.label}</p>
             <span className="text-sm">{statusCfg!.dot}</span>
           </div>
-          <p className="text-sm font-medium text-white truncate mb-1">
-            {sg.game?.name ?? '—'}
-          </p>
-          <p className="text-xs text-slate-400">
-            {sg.days_since_last !== null ? `${sg.days_since_last}d sin jugar` : ''}
-          </p>
+          <div className="flex gap-2 items-start mb-1">
+            {sg.game?.thumbnail_url && (
+              <Image
+                src={sg.game.thumbnail_url}
+                alt={sg.game.name}
+                width={36}
+                height={36}
+                className="rounded object-cover shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {sg.game?.name ?? '—'}
+              </p>
+              <p className="text-xs text-slate-400">
+                {sg.days_since_last !== null ? `${sg.days_since_last}d sin jugar` : ''}
+              </p>
+            </div>
+          </div>
           <p className="text-xs text-slate-500 truncate mt-1">
             {sg.players.slice(0, 2).map((p) => p.users?.display_name ?? '?').join(', ')}
             {sg.players.length > 2 ? ` +${sg.players.length - 2}` : ''}
@@ -224,12 +238,25 @@ function SlotCard({ slot, onFreeClick }: { slot: SlotData; onFreeClick: (s: Slot
         <p className="text-xs text-slate-400">{slot.label}</p>
         <span className="text-sm">{statusCfg!.dot}</span>
       </div>
-      <p className="text-sm font-medium text-white truncate mb-1">
-        {sg.game?.name ?? '—'}
-      </p>
-      <p className="text-xs text-slate-400">
-        {sg.days_since_last !== null ? `${sg.days_since_last}d sin jugar` : ''}
-      </p>
+      <div className="flex gap-2 items-start mb-1">
+        {sg.game?.thumbnail_url && (
+          <Image
+            src={sg.game.thumbnail_url}
+            alt={sg.game.name}
+            width={36}
+            height={36}
+            className="rounded object-cover shrink-0"
+          />
+        )}
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white truncate">
+            {sg.game?.name ?? '—'}
+          </p>
+          <p className="text-xs text-slate-400">
+            {sg.days_since_last !== null ? `${sg.days_since_last}d sin jugar` : ''}
+          </p>
+        </div>
+      </div>
       <p className="text-xs text-slate-500 truncate mt-1">
         {sg.players.slice(0, 2).map((p) => p.users?.display_name ?? '?').join(', ')}
         {sg.players.length > 2 ? ` +${sg.players.length - 2}` : ''}
