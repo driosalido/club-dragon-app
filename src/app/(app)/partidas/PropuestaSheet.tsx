@@ -100,6 +100,12 @@ export default function PropuestaSheet({ onClose, onCreated }: Props) {
               value={gameSearch}
               onChange={(e) => searchGames(e.target.value)}
               placeholder="Buscar juego..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-1p-ignore="true"
+              data-lpignore="true"
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
             />
             {gameResults.length > 0 && (

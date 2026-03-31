@@ -349,6 +349,12 @@ export default function MesaFijaQueuePage() {
                 value={editGameSearch}
                 onChange={(e) => handleEditGameInput(e.target.value)}
                 placeholder="Buscar juego..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-1p-ignore="true"
+              data-lpignore="true"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               />
               {editGameSearching && <p className="text-xs text-slate-500 mt-1">Buscando...</p>}

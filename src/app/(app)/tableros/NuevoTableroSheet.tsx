@@ -241,6 +241,12 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                   value={gameSearch}
                   onChange={(e) => handleGameInput(e.target.value)}
                   placeholder="Escribe el nombre..."
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  data-1p-ignore="true"
+                  data-lpignore="true"
                   autoFocus
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
                 />
