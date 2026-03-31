@@ -41,3 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# Override global gitignore that excludes lib/
+!src/lib/
+!src/lib/**
