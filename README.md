@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Club Dragon Madrid
 
-## Getting Started
+Internal web platform for Club Dragon Madrid (~280 members) to organize board game sessions, manage stored games, and coordinate availability among club members.
 
-First, run the development server:
+## Features
+
+- **Sessions** — Propose game sessions, automatically find interested players, and manage sign-ups. Notifications via Telegram Bot.
+- **Stored games** — Track games stored at the club (shelf slots and dedicated tables) with a traffic-light system that alerts on inactive games (green > yellow > red > expired).
+- **Member profiles** — Personal game catalog with interest levels, weekly availability, and schedule exceptions.
+- **BGG integration** — Game search and data from BoardGameGeek XML API2.
+- **Admin** — Member management, storage slot configuration, and dedicated table requests.
+
+## Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router, TypeScript, React 19) |
+| Styling | Tailwind CSS 4 |
+| Database | Supabase (PostgreSQL + Row Level Security) |
+| Auth | Telegram Login Widget + JWT (jose) |
+| Notifications | Telegram Bot API (grammy) |
+| Validation | Zod 4 |
+| Data fetching | TanStack React Query v5 |
+| Tests | Vitest + Testing Library |
+| Hosting | Vercel |
+
+## Local development
 
 ```bash
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your credentials
+
+# Start dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Required environment variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+TELEGRAM_BOT_TOKEN=
+JWT_SECRET=
+CRON_SECRET=
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Command | Description |
+|---------|------------|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Production server |
+| `npm run lint` | Linter (ESLint) |
+| `npm test` | Tests (Vitest) |
 
-To learn more about Next.js, take a look at the following resources:
+## Project structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├── app/
+│   ├── (auth)/login/          # Telegram login
+│   ├── (app)/                 # Authenticated routes
+│   │   ├── partidas/          # Session feed and details
+│   │   ├── tableros/          # Storage grid + traffic light
+│   │   ├── perfil/            # Member profile
+│   │   └── admin/             # Admin panel
+│   └── api/                   # Route handlers
+│       ├── auth/              # Telegram auth + logout
+│       ├── users/             # Profiles and availability
+│       ├── games/             # Game catalog + BGG proxy
+│       ├── sessions/          # Session CRUD
+│       ├── storage/           # Slots, stored games, dedicated tables
+│       └── cron/              # Daily traffic-light check
+├── components/                # Shared components
+├── lib/                       # Business logic
+│   ├── auth.ts                # JWT verification
+│   ├── bgg.ts                 # BGG XML parsing
+│   ├── supabase/              # Supabase clients
+│   ├── telegram/              # Bot + verification
+│   └── matching/              # Player matching + notifications
+├── config/                    # App configuration
+└── types/                     # TypeScript types (DB types)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[MIT](LICENSE)
