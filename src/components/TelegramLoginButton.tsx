@@ -33,9 +33,7 @@ export default function TelegramLoginButton({ botUsername, onError }: Props) {
       })
 
       if (res.ok) {
-        const { token } = await res.json() as { token: string }
-        // Store token in httpOnly cookie via a dedicated set-cookie route
-        document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        await res.json()
         router.push('/tableros')
       } else {
         const body = await res.json().catch(() => ({})) as { code?: string }

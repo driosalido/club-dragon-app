@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { SignJWT } from 'jose'
 import { createServiceClient } from '@/lib/supabase/server'
 import { verifyTelegramHash, isAuthDateValid } from '@/lib/telegram/verify'
+import { buildAuthCookie } from '@/lib/auth-cookie'
 
 const TelegramAuthSchema = z.object({
   id: z.number(),
@@ -60,8 +61,9 @@ export async function POST(request: Request) {
     const status = memberData.result?.status
     const isMember = memberData.ok && status !== undefined && ['member', 'administrator', 'creator'].includes(status)
     if (!isMember) {
+      console.error('[auth] getChatMember failed:', { groupId, userId: data.id, ok: memberData.ok, status })
       return Response.json(
-        { error: 'Not a member of Club Dragon Oficial', code: 'NOT_A_MEMBER' },
+        { error: 'Not a member of the required group', code: 'NOT_A_MEMBER' },
         { status: 403 }
       )
     }
@@ -100,5 +102,8 @@ export async function POST(request: Request) {
     .setExpirationTime('30d')
     .sign(jwtSecret)
 
-  return Response.json({ token, user })
+  return Response.json(
+    { token, user },
+    { headers: { 'Set-Cookie': buildAuthCookie(token, request) } }
+  )
 }

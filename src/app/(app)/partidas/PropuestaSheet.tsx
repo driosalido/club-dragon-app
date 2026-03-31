@@ -128,6 +128,8 @@ export default function PropuestaSheet({ onClose, onCreated }: Props) {
               type="date"
               min={today}
               {...register('scheduled_date')}
+              onClick={(e) => e.currentTarget.showPicker?.()}
+              onFocus={(e) => e.currentTarget.showPicker?.()}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
             />
             {errors.scheduled_date && <p className="text-red-400 text-xs mt-1">{errors.scheduled_date.message}</p>}

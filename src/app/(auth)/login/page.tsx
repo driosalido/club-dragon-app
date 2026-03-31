@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Script from 'next/script'
-import TelegramLoginButton from '@/components/TelegramLoginButton'
 import TelegramMiniAppAuth from '@/components/TelegramMiniAppAuth'
+import TelegramLinkAuth from '@/components/TelegramLinkAuth'
 
 export default function LoginPage() {
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'ClubDragonBot'
@@ -56,7 +56,10 @@ export default function LoginPage() {
 
           {isMiniApp === false && (
             <div className="flex flex-col items-center gap-4 w-full">
-              <TelegramLoginButton botUsername={botUsername} onError={setError} />
+              <TelegramLinkAuth
+                botUsername={botUsername}
+                onError={setError}
+              />
               <div className="flex items-center gap-3 w-full">
                 <div className="flex-1 h-px bg-slate-800" />
                 <span className="text-xs text-slate-600">o</span>

@@ -8,7 +8,7 @@ const CreateRequestSchema = z.object({
   slot_id: z.string().uuid().optional(),
   game_id: z.string().uuid(),
   reason: z.string().max(1000).optional(),
-  expected_end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  expected_duration_months: z.number().int().min(1).max(24).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     .order('requested_at', { ascending: true })
 
   if (status) {
-    query = query.eq('status', status as 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired')
+    query = query.eq('status', status as 'pending' | 'queued' | 'rejected' | 'assigned' | 'cancelled' | 'expired')
   }
   if (slot_id) {
     query = query.eq('slot_id', slot_id)
@@ -111,23 +111,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Compute next queue_position for this slot (or global if no slot_id)
-  const posQuery = supabase
-    .from('mesa_fija_requests')
-    .select('queue_position')
-    .in('status', ['queued', 'approved'])
-    .order('queue_position', { ascending: false })
-    .limit(1)
-
-  if (parsed.data.slot_id) {
-    posQuery.eq('slot_id', parsed.data.slot_id)
-  } else {
-    posQuery.is('slot_id', null)
-  }
-
-  const { data: lastPos } = await posQuery
-  const queue_position = lastPos && lastPos.length > 0 ? (lastPos[0]!.queue_position + 1) : 1
-
   const { data: newRequest, error: insertError } = await supabase
     .from('mesa_fija_requests')
     .insert({
@@ -135,9 +118,9 @@ export async function POST(request: NextRequest) {
       requester_id: caller.sub,
       game_id: parsed.data.game_id,
       reason: parsed.data.reason ?? null,
-      expected_end_date: parsed.data.expected_end_date ?? null,
-      queue_position,
-      status: 'queued',
+      expected_duration_months: parsed.data.expected_duration_months ?? null,
+      queue_position: 0,
+      status: 'pending',
     })
     .select(`
       *,
@@ -150,6 +133,7 @@ export async function POST(request: NextRequest) {
     if (insertError?.code === '23505') {
       return Response.json({ error: 'Ya tienes una solicitud activa para esta mesa', code: 'DUPLICATE_REQUEST' }, { status: 409 })
     }
+    console.error('[mesa_fija] Insert failed:', insertError)
     return Response.json({ error: 'Insert failed' }, { status: 500 })
   }
 

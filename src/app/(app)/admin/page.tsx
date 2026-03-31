@@ -39,8 +39,8 @@ export default function AdminPage() {
   })
 
   const { data: pendingMesas = [] } = useQuery<MesaFijaRequest[]>({
-    queryKey: ['admin-mfr-queued'],
-    queryFn: () => fetch('/api/storage/mesa-fija-requests?status=queued').then((r) => r.json()),
+    queryKey: ['admin-mfr-pending'],
+    queryFn: () => fetch('/api/storage/mesa-fija-requests?status=pending').then((r) => r.json()),
     enabled: !!me?.is_admin,
   })
 

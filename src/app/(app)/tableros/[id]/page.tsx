@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -20,6 +20,18 @@ interface StoredGamePlayer {
 interface StoredGameSession {
   id: string; session_date: string; duration_minutes: number | null
   state_after_session: string | null; next_turn_info: string | null; created_at: string
+}
+
+interface UserSearchResult {
+  id: string
+  display_name: string
+  avatar_url: string | null
+}
+
+interface EditablePlayer {
+  user_id: string
+  display_name: string
+  faction_or_side: string
 }
 
 interface StoredGameDetail {
@@ -50,6 +62,11 @@ export default function TableroDetailPage() {
   const [sessionModalOpen, setSessionModalOpen] = useState(false)
   const [finishConfirm, setFinishConfirm] = useState(false)
   const [evictConfirm, setEvictConfirm] = useState(false)
+  const [editingPlayers, setEditingPlayers] = useState(false)
+  const [playersDraft, setPlayersDraft] = useState<EditablePlayer[]>([])
+  const [userSearch, setUserSearch] = useState('')
+  const [userResults, setUserResults] = useState<UserSearchResult[]>([])
+  const [playersError, setPlayersError] = useState<string | null>(null)
   const [sessionForm, setSessionForm] = useState({
     session_date: new Date().toISOString().slice(0, 10),
     duration_minutes: '',
@@ -68,6 +85,7 @@ export default function TableroDetailPage() {
   })
 
   const isPlayer = me && game?.players.some((p) => p.user_id === me.id)
+  const canManagePlayers = !!me && !!game && (me.is_admin || game.responsible_user_id === me.id)
 
   const logSession = useMutation({
     mutationFn: (data: typeof sessionForm) =>
@@ -100,6 +118,87 @@ export default function TableroDetailPage() {
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stored-game', id] }),
   })
+
+  const updatePlayers = useMutation({
+    mutationFn: (players: EditablePlayer[]) =>
+      fetch(`/api/storage/stored-games/${id}/players`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          players: players.map((p) => ({
+            user_id: p.user_id,
+            faction_or_side: p.faction_or_side.trim() || undefined,
+          })),
+        }),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string }
+          throw new Error(body.error ?? 'No se pudieron actualizar los jugadores')
+        }
+      }),
+    onSuccess: () => {
+      setEditingPlayers(false)
+      setPlayersError(null)
+      setUserSearch('')
+      setUserResults([])
+      qc.invalidateQueries({ queryKey: ['stored-game', id] })
+      qc.invalidateQueries({ queryKey: ['slots'] })
+    },
+    onError: (e) => {
+      setPlayersError(e instanceof Error ? e.message : 'No se pudieron actualizar los jugadores')
+    },
+  })
+
+  function startEditPlayers() {
+    if (!game) return
+    setPlayersError(null)
+    setEditingPlayers(true)
+    setPlayersDraft(
+      game.players.map((p) => ({
+        user_id: p.user_id,
+        display_name: p.users?.display_name ?? 'Desconocido',
+        faction_or_side: p.faction_or_side ?? '',
+      }))
+    )
+  }
+
+  async function searchUsers(q: string) {
+    setUserSearch(q)
+    if (!q.trim()) {
+      setUserResults([])
+      return
+    }
+    const res = await fetch(`/api/users?q=${encodeURIComponent(q)}`)
+    if (res.ok) {
+      const data = await res.json() as UserSearchResult[]
+      setUserResults(data)
+    }
+  }
+
+  function addPlayer(user: UserSearchResult) {
+    if (playersDraft.some((p) => p.user_id === user.id)) return
+    setPlayersDraft((prev) => [
+      ...prev,
+      { user_id: user.id, display_name: user.display_name, faction_or_side: '' },
+    ])
+    setUserSearch('')
+    setUserResults([])
+  }
+
+  function removePlayer(userId: string) {
+    if (game?.responsible_user_id === userId) {
+      setPlayersError('El responsable de la partida debe permanecer en la lista de jugadores.')
+      return
+    }
+    setPlayersError(null)
+    setPlayersDraft((prev) => prev.filter((p) => p.user_id !== userId))
+  }
+
+  function updateFaction(userId: string, faction: string) {
+    setPlayersDraft((prev) =>
+      prev.map((p) => (p.user_id === userId ? { ...p, faction_or_side: faction } : p))
+    )
+  }
 
   if (isLoading) return <div className="p-4"><div className="h-48 bg-slate-900 rounded-xl animate-pulse" /></div>
   if (!game) return <div className="p-4 text-slate-500 text-center">Tablero no encontrado<br /><Link href="/tableros" className="text-indigo-400 text-sm">← Volver</Link></div>
@@ -158,15 +257,100 @@ export default function TableroDetailPage() {
         )}
 
         <div>
-          <p className="text-xs text-slate-500 mb-1">Jugadores</p>
-          <div className="flex flex-wrap gap-2">
-            {game.players.map((p) => (
-              <div key={p.user_id} className="flex items-center gap-1.5 bg-slate-800 rounded-full px-2 py-1">
-                <span className="text-xs text-white">{p.users?.display_name ?? '?'}</span>
-                {p.faction_or_side && <span className="text-xs text-slate-500">({p.faction_or_side})</span>}
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-slate-500">Jugadores</p>
+            {canManagePlayers && !editingPlayers && (
+              <button
+                onClick={startEditPlayers}
+                className="inline-flex items-center gap-1 text-xs text-indigo-300 hover:text-indigo-200"
+              >
+                <Pencil size={12} />
+                Editar
+              </button>
+            )}
           </div>
+
+          {!editingPlayers ? (
+            <div className="flex flex-wrap gap-2">
+              {game.players.map((p) => (
+                <div key={p.user_id} className="flex items-center gap-1.5 bg-slate-800 rounded-full px-2 py-1">
+                  <span className="text-xs text-white">{p.users?.display_name ?? '?'}</span>
+                  {p.faction_or_side && <span className="text-xs text-slate-500">({p.faction_or_side})</span>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                value={userSearch}
+                onChange={(e) => searchUsers(e.target.value)}
+                placeholder="Buscar usuario para añadir..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+              />
+              {userResults.length > 0 && (
+                <ul className="bg-slate-800 border border-slate-700 rounded-lg divide-y divide-slate-700 max-h-32 overflow-y-auto">
+                  {userResults.map((u) => (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onClick={() => addPlayer(u)}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                      >
+                        <Plus size={12} className="text-indigo-400" />
+                        {u.display_name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="space-y-2">
+                {playersDraft.map((p) => (
+                  <div key={p.user_id} className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2">
+                    <span className="text-sm text-white min-w-0 flex-1 truncate">{p.display_name}</span>
+                    <input
+                      value={p.faction_or_side}
+                      onChange={(e) => updateFaction(p.user_id, e.target.value)}
+                      placeholder="Facción/bando"
+                      className="w-32 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                    />
+                    <button
+                      onClick={() => removePlayer(p.user_id)}
+                      className="text-slate-500 hover:text-red-400"
+                      title="Quitar jugador"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {playersError && (
+                <p className="text-xs text-red-400">{playersError}</p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    setEditingPlayers(false)
+                    setPlayersError(null)
+                    setUserSearch('')
+                    setUserResults([])
+                  }}
+                  className="flex-1 bg-slate-800 text-slate-300 rounded-lg py-2 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => updatePlayers.mutate(playersDraft)}
+                  disabled={updatePlayers.isPending || playersDraft.length === 0}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-medium"
+                >
+                  {updatePlayers.isPending ? 'Guardando...' : 'Guardar jugadores'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -250,6 +434,8 @@ export default function TableroDetailPage() {
                 <label className="block text-xs text-slate-400 mb-1">Fecha</label>
                 <input type="date" value={sessionForm.session_date}
                   onChange={(e) => setSessionForm((f) => ({ ...f, session_date: e.target.value }))}
+                  onClick={(e) => e.currentTarget.showPicker?.()}
+                  onFocus={(e) => e.currentTarget.showPicker?.()}
                   max={new Date().toISOString().slice(0, 10)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white" />
               </div>

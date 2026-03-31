@@ -1,8 +1,10 @@
-export async function POST() {
+import { buildClearAuthCookie } from '@/lib/auth-cookie'
+
+export async function POST(request: Request) {
   return new Response(null, {
     status: 204,
     headers: {
-      'Set-Cookie': 'auth-token=; Path=/; Max-Age=0; SameSite=Lax',
+      'Set-Cookie': buildClearAuthCookie(request),
     },
   })
 }

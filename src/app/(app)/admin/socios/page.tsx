@@ -4,17 +4,23 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Pencil, Check, X } from 'lucide-react'
+import { ArrowLeft, Pencil, Check, X, Shield } from 'lucide-react'
 import { useEffect } from 'react'
 
 interface Member {
   id: string
   display_name: string
   telegram_username: string | null
+  avatar_url: string | null
   member_number: number | null
   is_admin: boolean
   is_active: boolean
   created_at: string
+}
+
+interface PatchPayload {
+  member_number?: number | null
+  is_admin?: boolean
 }
 
 export default function AdminSociosPage() {
@@ -38,13 +44,16 @@ export default function AdminSociosPage() {
   })
 
   const patch = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { member_number: number | null } }) =>
+    mutationFn: ({ id, data }: { id: string; data: PatchPayload }) =>
       fetch(`/api/admin/users/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-members'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-members'] })
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
   })
 
   function startEdit(member: Member) {
@@ -68,6 +77,23 @@ export default function AdminSociosPage() {
     )
   }
 
+  function toggleAdmin(member: Member) {
+    if (member.id === me?.id && member.is_admin) {
+      window.alert('No puedes quitarte permisos de admin a ti mismo desde esta pantalla.')
+      return
+    }
+
+    const makingAdmin = !member.is_admin
+    const confirmed = window.confirm(
+      makingAdmin
+        ? `¿Convertir a ${member.display_name} en admin?`
+        : `¿Quitar permisos de admin a ${member.display_name}?`
+    )
+    if (!confirmed) return
+
+    patch.mutate({ id: member.id, data: { is_admin: makingAdmin } })
+  }
+
   if (!me) return <div className="p-4"><div className="h-48 bg-slate-900 rounded-xl animate-pulse" /></div>
   if (!me.is_admin) return null
 
@@ -87,6 +113,9 @@ export default function AdminSociosPage() {
         </Link>
       </div>
       <p className="text-slate-400 text-sm">{members.length} socios registrados</p>
+      <p className="text-slate-500 text-xs -mt-2">
+        Usa "Editar n.º socio" para asignar o cambiar el número de socio.
+      </p>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -99,9 +128,18 @@ export default function AdminSociosPage() {
             return (
               <div key={member.id} className="flex items-center gap-3 px-4 py-3">
                 {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-indigo-800 flex items-center justify-center text-sm font-bold text-white shrink-0">
-                  {member.display_name[0]?.toUpperCase()}
-                </div>
+                {member.avatar_url ? (
+                  <img
+                    src={member.avatar_url}
+                    alt={member.display_name}
+                    className="w-8 h-8 rounded-full object-cover shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-indigo-800 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                    {member.display_name[0]?.toUpperCase()}
+                  </div>
+                )}
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -134,6 +172,7 @@ export default function AdminSociosPage() {
                         if (e.key === 'Enter') saveEdit(member.id)
                         if (e.key === 'Escape') cancelEdit(member.id)
                       }}
+                      aria-label="Numero de socio"
                       className="w-16 bg-slate-800 border border-indigo-600 rounded px-2 py-1 text-sm text-white focus:outline-none"
                     />
                     <button
@@ -149,14 +188,29 @@ export default function AdminSociosPage() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => toggleAdmin(member)}
+                      disabled={patch.isPending || (member.id === me.id && member.is_admin)}
+                      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        member.is_admin
+                          ? 'text-indigo-300 border-indigo-700 bg-indigo-950/40 hover:bg-indigo-900/50'
+                          : 'text-slate-400 border-slate-700 bg-slate-800/60 hover:bg-slate-700/70'
+                      }`}
+                      title={member.is_admin ? 'Quitar admin' : 'Hacer admin'}
+                    >
+                      <Shield size={12} />
+                      {member.is_admin ? 'Admin' : 'Hacer admin'}
+                    </button>
                     <span className="text-sm text-slate-400 min-w-[3rem] text-right">
                       {member.member_number ? `#${member.member_number}` : <span className="text-slate-600">—</span>}
                     </span>
                     <button
                       onClick={() => startEdit(member)}
-                      className="text-slate-600 hover:text-slate-400 transition-colors"
+                      title="Editar numero de socio"
+                      className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
                     >
                       <Pencil size={14} />
+                      <span>Editar n.º socio</span>
                     </button>
                   </div>
                 )}

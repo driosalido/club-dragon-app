@@ -7,7 +7,6 @@ import {
   sendStorageCriticalNotification,
   sendStorageExpiredNotification,
   sendMesaFijaYourTurnNotification,
-  sendMesaFijaExpiredNotification,
 } from '@/lib/telegram/bot'
 
 async function checkCronRateLimit(key: string): Promise<boolean> {
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  const { lifecycle, mesaFijaApprovalHours } = storageConfig
+  const { lifecycle } = storageConfig
 
   // Run the PostgreSQL function with configurable thresholds
   const { error: rpcError } = await supabase.rpc('compute_storage_statuses', {
@@ -105,43 +104,7 @@ export async function POST(request: NextRequest) {
 
   // ── Mesa fija queue management ──────────────────────────────────────────
 
-  // 1. Expire approved requests that weren't claimed in time
-  const { data: expiredRequests } = await supabase
-    .from('mesa_fija_requests')
-    .select('id, requester_id, game_id')
-    .eq('status', 'approved')
-    .lt('expires_at', new Date().toISOString())
-
-  for (const mfr of expiredRequests ?? []) {
-    const { data: expiredMfr } = await supabase
-      .from('mesa_fija_requests')
-      .update({ status: 'expired' })
-      .eq('id', mfr.id)
-      .select()
-      .single()
-
-    if (!expiredMfr) continue
-
-    try {
-      const { data: requester } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', mfr.requester_id)
-        .single()
-      const { data: gameData } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', mfr.game_id)
-        .single()
-      if (requester) {
-        await sendMesaFijaExpiredNotification(requester, expiredMfr, gameData ?? null)
-      }
-    } catch (e) {
-      console.error(`[cron] Failed to notify mesa_fija expiry for ${mfr.id}:`, e)
-    }
-  }
-
-  // 2. When a mesa_fija stored_game completes or is evicted, auto-promote next in queue
+  // When a mesa_fija stored_game completes or is evicted, notify first queued request
   // First get all mesa_fija slot IDs
   const { data: mesaFijaSlots } = await supabase
     .from('storage_slots')
@@ -189,45 +152,37 @@ export async function POST(request: NextRequest) {
     const nextRequest = nextRequests?.[0]
     if (!nextRequest) continue
 
-    // Auto-promote: queued → approved with 48h expiry
-    const { data: promoted } = await supabase
-      .from('mesa_fija_requests')
-      .update({
-        status: 'approved',
-        reviewed_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + mesaFijaApprovalHours * 60 * 60 * 1000).toISOString(),
-      })
-      .eq('id', nextRequest.id)
-      .select()
-      .single()
-
     processedSlots.add(sg.slot_id)
 
-    if (promoted) {
-      try {
-        const { data: requester } = await supabase
-          .from('users')
+    try {
+      const { data: requester } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', nextRequest.requester_id)
+        .single()
+      const { data: gameData } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', nextRequest.game_id)
+        .single()
+      if (requester) {
+        const { data: requestData } = await supabase
+          .from('mesa_fija_requests')
           .select('*')
-          .eq('id', nextRequest.requester_id)
+          .eq('id', nextRequest.id)
           .single()
-        const { data: gameData } = await supabase
-          .from('games')
-          .select('*')
-          .eq('id', nextRequest.game_id)
-          .single()
-        if (requester) {
-          await sendMesaFijaYourTurnNotification(requester, promoted, gameData ?? null)
+        if (requestData) {
+          await sendMesaFijaYourTurnNotification(requester, requestData, gameData ?? null)
         }
-      } catch (e) {
-        console.error(`[cron] Failed to notify mesa_fija promotion for ${nextRequest.id}:`, e)
       }
+    } catch (e) {
+      console.error(`[cron] Failed to notify mesa_fija turn for ${nextRequest.id}:`, e)
     }
   }
 
   return Response.json({
     updated: alertGames?.length ?? 0,
     notified,
-    mesa_fija_expired: expiredRequests?.length ?? 0,
-    mesa_fija_promoted: processedSlots.size,
+    mesa_fija_turn_notified: processedSlots.size,
   })
 }

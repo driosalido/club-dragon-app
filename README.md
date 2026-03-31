@@ -17,7 +17,7 @@ Internal web platform for Club Dragon Madrid (~280 members) to organize board ga
 | Framework | Next.js 16 (App Router, TypeScript, React 19) |
 | Styling | Tailwind CSS 4 |
 | Database | Supabase (PostgreSQL + Row Level Security) |
-| Auth | Telegram Login Widget + JWT (jose) |
+| Auth | Telegram Login Widget + Telegram link-login + JWT (jose) |
 | Notifications | Telegram Bot API (grammy) |
 | Validation | Zod 4 |
 | Data fetching | TanStack React Query v5 |
@@ -45,10 +45,26 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_GROUP_ID=
+TELEGRAM_WEBHOOK_SECRET=
 JWT_SECRET=
 CRON_SECRET=
 KV_REST_API_URL=
 KV_REST_API_TOKEN=
+```
+
+### Telegram link-login setup (browser fallback)
+
+The browser flow "Entrar desde navegador (confirmando en Telegram)" uses:
+- `POST /api/auth/telegram-link/start`
+- `GET /api/auth/telegram-link/status`
+- `POST /api/telegram/webhook` (called by Telegram)
+
+Set the bot webhook to your deployment:
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-domain>/api/telegram/webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
 ## Scripts

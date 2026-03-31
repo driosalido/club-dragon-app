@@ -29,10 +29,10 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
   const [bggId, setBggId] = useState('')
   const [showBggField, setShowBggField] = useState(false)
   const [reason, setReason] = useState('')
-  const [expectedEndDate, setExpectedEndDate] = useState('')
+  const [expectedDurationMonths, setExpectedDurationMonths] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [queuePosition, setQueuePosition] = useState<number | null>(null)
+  const [requestSubmitted, setRequestSubmitted] = useState(false)
 
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -92,7 +92,7 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
           slot_id: slot.id,
           game_id: selectedGame.id,
           reason: reason.trim() || undefined,
-          expected_end_date: expectedEndDate || undefined,
+          expected_duration_months: expectedDurationMonths ? Number(expectedDurationMonths) : undefined,
         }),
       })
       if (!res.ok) {
@@ -104,14 +104,14 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
         }
         return
       }
-      const data = await res.json() as { queue_position: number }
-      setQueuePosition(data.queue_position)
+      await res.json()
+      setRequestSubmitted(true)
     } finally {
       setSubmitting(false)
     }
   }
 
-  const slotName = `Mesa ${slot.slot_number}${slot.label ? ` · ${slot.label}` : ''}`
+  const slotName = slot.label?.trim() || `Mesa ${slot.slot_number}`
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -133,16 +133,16 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
           )}
         </div>
 
-        {queuePosition !== null ? (
+        {requestSubmitted ? (
           /* Success state */
           <div className="text-center py-6">
             <div className="text-4xl mb-4">✅</div>
             <h3 className="text-lg font-semibold text-white mb-2">¡Solicitud enviada!</h3>
             <p className="text-slate-400 text-sm mb-2">
-              Estás en la posición <span className="text-indigo-400 font-bold">#{queuePosition}</span> de la cola.
+              Tu solicitud está ahora en estado <span className="text-amber-300 font-bold">pendiente</span>.
             </p>
             <p className="text-slate-500 text-xs mb-6">
-              La junta revisará tu solicitud y recibirás una notificación por Telegram cuando sea aprobada.
+              La junta revisará tu solicitud y, si se aprueba, pasará a la cola de la mesa.
             </p>
             <button
               onClick={onCreated}
@@ -214,14 +214,18 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
               )}
             </div>
 
-            {/* Expected end date (optional) */}
+            {/* Estimated duration in months (optional) */}
             <div className="mb-4">
-              <label className="block text-sm text-slate-400 mb-2">Estimación de fin <span className="text-slate-600">(opcional)</span></label>
+              <label className="block text-sm text-slate-400 mb-2">Duración estimada (meses) <span className="text-slate-600">(opcional)</span></label>
               <input
-                type="date"
-                value={expectedEndDate}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setExpectedEndDate(e.target.value)}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={24}
+                step={1}
+                placeholder="Ej. 6"
+                value={expectedDurationMonths}
+                onChange={(e) => setExpectedDurationMonths(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
               />
             </div>

@@ -228,7 +228,7 @@ export type Database = {
           slot_id: string | null
           requester_id: string
           game_id: string
-          status: 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
+          status: 'pending' | 'queued' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
           queue_position: number
           reason: string | null
           admin_notes: string | null
@@ -237,6 +237,8 @@ export type Database = {
           reviewed_at: string | null
           assigned_at: string | null
           expires_at: string | null
+          expected_end_date: string | null
+          expected_duration_months: number | null
           created_at: string
         }
         Insert: {
@@ -244,7 +246,7 @@ export type Database = {
           slot_id?: string | null
           requester_id: string
           game_id: string
-          status?: 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
+          status?: 'pending' | 'queued' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
           queue_position: number
           reason?: string | null
           admin_notes?: string | null
@@ -253,6 +255,8 @@ export type Database = {
           reviewed_at?: string | null
           assigned_at?: string | null
           expires_at?: string | null
+          expected_end_date?: string | null
+          expected_duration_months?: number | null
           created_at?: string
         }
         Update: {
@@ -260,7 +264,7 @@ export type Database = {
           slot_id?: string | null
           requester_id?: string
           game_id?: string
-          status?: 'queued' | 'approved' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
+          status?: 'pending' | 'queued' | 'rejected' | 'assigned' | 'cancelled' | 'expired'
           queue_position?: number
           reason?: string | null
           admin_notes?: string | null
@@ -269,7 +273,51 @@ export type Database = {
           reviewed_at?: string | null
           assigned_at?: string | null
           expires_at?: string | null
+          expected_end_date?: string | null
+          expected_duration_months?: number | null
           created_at?: string
+        }
+        Relationships: []
+      }
+      telegram_login_requests: {
+        Row: {
+          token: string
+          status: 'pending' | 'approved' | 'rejected' | 'consumed'
+          telegram_id: number | null
+          telegram_username: string | null
+          telegram_first_name: string | null
+          telegram_last_name: string | null
+          telegram_photo_url: string | null
+          created_at: string
+          expires_at: string
+          approved_at: string | null
+          consumed_at: string | null
+        }
+        Insert: {
+          token: string
+          status?: 'pending' | 'approved' | 'rejected' | 'consumed'
+          telegram_id?: number | null
+          telegram_username?: string | null
+          telegram_first_name?: string | null
+          telegram_last_name?: string | null
+          telegram_photo_url?: string | null
+          created_at?: string
+          expires_at: string
+          approved_at?: string | null
+          consumed_at?: string | null
+        }
+        Update: {
+          token?: string
+          status?: 'pending' | 'approved' | 'rejected' | 'consumed'
+          telegram_id?: number | null
+          telegram_username?: string | null
+          telegram_first_name?: string | null
+          telegram_last_name?: string | null
+          telegram_photo_url?: string | null
+          created_at?: string
+          expires_at?: string
+          approved_at?: string | null
+          consumed_at?: string | null
         }
         Relationships: []
       }

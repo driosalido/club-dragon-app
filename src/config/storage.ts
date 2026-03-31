@@ -31,8 +31,6 @@ export interface StorageConfig {
   pizzeros: PizzeroConfig[]
   mesasFijasCount: number
   lifecycle: StorageLifecycle
-  /** Hours an approved mesa_fija request stays valid before expiring unclaimed */
-  mesaFijaApprovalHours: number
 }
 
 const storageConfig: StorageConfig = {
@@ -49,8 +47,6 @@ const storageConfig: StorageConfig = {
     criticalDays: 28,
     expiredDays: 30,
   },
-
-  mesaFijaApprovalHours: 48,
 }
 
 export default storageConfig

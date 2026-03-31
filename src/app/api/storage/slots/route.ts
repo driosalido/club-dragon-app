@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const { data: queueCounts } = await supabase
     .from('mesa_fija_requests')
     .select('slot_id, id, status, game_id, expires_at, queue_position')
-    .in('status', ['queued', 'approved'])
+    .eq('status', 'queued')
 
   const queueCountMap = new Map<string, number>()
   for (const r of queueCounts ?? []) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     .from('mesa_fija_requests')
     .select('id, slot_id, status, game_id, expires_at, queue_position')
     .eq('requester_id', caller.sub)
-    .in('status', ['queued', 'approved'])
+    .in('status', ['pending', 'queued'])
 
   // Build game name map for my requests
   const myRequestGameIds = (myRequests ?? []).map((r) => r.game_id).filter(Boolean) as string[]
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
   const myRequestMap = new Map<string, {
     id: string
-    status: 'queued' | 'approved'
+    status: 'pending' | 'queued'
     game_id: string | null
     game_name: string | null
     expires_at: string | null
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     if (r.slot_id) {
       myRequestMap.set(r.slot_id, {
         id: r.id,
-        status: r.status as 'queued' | 'approved',
+        status: r.status as 'pending' | 'queued',
         game_id: r.game_id,
         game_name: r.game_id ? (myRequestGameMap.get(r.game_id) ?? null) : null,
         expires_at: r.expires_at,

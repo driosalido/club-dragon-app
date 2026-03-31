@@ -247,8 +247,8 @@ export async function sendMesaFijaApprovedNotification(
   const message = [
     `✅ <b>¡Solicitud aprobada! ${gameName}</b>`,
     ``,
-    `Tu solicitud de mesa fija ha sido aprobada por la junta.`,
-    `Cuando la mesa esté libre, ya puedes registrar tu partida directamente desde la app.`,
+    `Tu solicitud ha sido aprobada por la junta y ya está en la cola de la mesa.`,
+    `Podrás registrar la partida cuando tu solicitud llegue a la primera posición y la mesa quede libre.`,
     request.admin_notes ? `💬 Nota de la junta: ${request.admin_notes}` : '',
   ].filter(Boolean).join('\n')
 
@@ -289,7 +289,7 @@ export async function sendMesaFijaYourTurnNotification(
   const message = [
     `🎉 <b>¡Es tu turno! Mesa fija para ${gameName}</b>`,
     ``,
-    `Una mesa fija se ha liberado y tu solicitud ha sido aprobada automáticamente.`,
+    `Una mesa fija se ha liberado y tu solicitud está primera en la cola.`,
     `Ya puedes registrar tu partida directamente desde la app del club.`,
   ].join('\n')
 
@@ -306,10 +306,10 @@ export async function sendMesaFijaExpiredNotification(
 
   const gameName = game?.name ?? 'tu juego'
   const message = [
-    `⏰ <b>Aprobación expirada: ${gameName}</b>`,
+    `ℹ️ <b>Actualización de tu solicitud: ${gameName}</b>`,
     ``,
-    `Tu aprobación de mesa fija ha expirado sin ser reclamada.`,
-    `Puedes volver a solicitar la mesa desde la app del club.`,
+    `Tu aprobación anterior ya no está activa.`,
+    `Si sigues interesado, puedes volver a solicitar la mesa desde la app del club.`,
   ].join('\n')
 
   await safeSend(bot, requester.telegram_id, message)

@@ -406,6 +406,8 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
                 <label className="block text-xs text-slate-400 mb-1">Fecha estimada de fin (opcional)</label>
                 <input type="date" value={expectedEndDate} min={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setExpectedEndDate(e.target.value)}
+                  onClick={(e) => e.currentTarget.showPicker?.()}
+                  onFocus={(e) => e.currentTarget.showPicker?.()}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white" />
               </div>
 

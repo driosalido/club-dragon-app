@@ -35,7 +35,7 @@ export async function POST(
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  if (!['queued', 'approved'].includes(mfr.status)) {
+  if (!['pending', 'queued'].includes(mfr.status)) {
     return Response.json({ error: 'Cannot cancel a request in this state', code: 'INVALID_STATUS' }, { status: 409 })
   }
 
@@ -47,27 +47,29 @@ export async function POST(
 
   if (cancelError) return Response.json({ error: 'Update failed' }, { status: 500 })
 
-  // Recompute queue positions for remaining active requests on same slot
-  const posQuery = supabase
-    .from('mesa_fija_requests')
-    .select('id, queue_position')
-    .in('status', ['queued', 'approved'])
-    .gt('queue_position', mfr.queue_position)
-    .order('queue_position', { ascending: true })
-
-  if (mfr.slot_id) {
-    posQuery.eq('slot_id', mfr.slot_id)
-  } else {
-    posQuery.is('slot_id', null)
-  }
-
-  const { data: toShift } = await posQuery
-
-  for (const row of toShift ?? []) {
-    await supabase
+  // Recompute queue positions only if request was already in queue
+  if (mfr.status === 'queued') {
+    const posQuery = supabase
       .from('mesa_fija_requests')
-      .update({ queue_position: row.queue_position - 1 })
-      .eq('id', row.id)
+      .select('id, queue_position')
+      .eq('status', 'queued')
+      .gt('queue_position', mfr.queue_position)
+      .order('queue_position', { ascending: true })
+
+    if (mfr.slot_id) {
+      posQuery.eq('slot_id', mfr.slot_id)
+    } else {
+      posQuery.is('slot_id', null)
+    }
+
+    const { data: toShift } = await posQuery
+
+    for (const row of toShift ?? []) {
+      await supabase
+        .from('mesa_fija_requests')
+        .update({ queue_position: row.queue_position - 1 })
+        .eq('id', row.id)
+    }
   }
 
   return Response.json({ ok: true })

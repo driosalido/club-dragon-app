@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Check slot type — mesa_fija requires an approved request
+  // Check slot type — mesa_fija requires being first in queue
   const { data: slotData } = await supabase
     .from('storage_slots')
     .select('slot_type')
@@ -109,17 +109,17 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (slotData?.slot_type === 'mesa_fija') {
-    const { data: approvedRequest } = await supabase
+    const { data: queuedRequest } = await supabase
       .from('mesa_fija_requests')
-      .select('id')
+      .select('id, queue_position')
       .eq('slot_id', parsed.data.slot_id)
       .eq('requester_id', user.sub)
-      .eq('status', 'approved')
+      .eq('status', 'queued')
       .single()
 
-    if (!approvedRequest) {
+    if (!queuedRequest || queuedRequest.queue_position !== 1) {
       return Response.json(
-        { error: 'Se requiere aprobación de la junta para usar esta mesa fija', code: 'MESA_FIJA_NOT_APPROVED' },
+        { error: 'Debes tener una solicitud aprobada y estar el primero en la cola para usar esta mesa fija', code: 'MESA_FIJA_NOT_YOUR_TURN' },
         { status: 403 }
       )
     }
@@ -128,7 +128,23 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('mesa_fija_requests')
       .update({ status: 'assigned', assigned_at: new Date().toISOString() })
-      .eq('id', approvedRequest.id)
+      .eq('id', queuedRequest.id)
+
+    // Shift remaining queue positions for this slot
+    const { data: toShift } = await supabase
+      .from('mesa_fija_requests')
+      .select('id, queue_position')
+      .eq('slot_id', parsed.data.slot_id)
+      .eq('status', 'queued')
+      .gt('queue_position', queuedRequest.queue_position)
+      .order('queue_position', { ascending: true })
+
+    for (const row of toShift ?? []) {
+      await supabase
+        .from('mesa_fija_requests')
+        .update({ queue_position: row.queue_position - 1 })
+        .eq('id', row.id)
+    }
   }
 
   // Check slot is free
