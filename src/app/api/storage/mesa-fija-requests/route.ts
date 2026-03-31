@@ -8,6 +8,7 @@ const CreateRequestSchema = z.object({
   slot_id: z.string().uuid().optional(),
   game_id: z.string().uuid(),
   reason: z.string().max(1000).optional(),
+  expected_end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
       requester_id: caller.sub,
       game_id: parsed.data.game_id,
       reason: parsed.data.reason ?? null,
+      expected_end_date: parsed.data.expected_end_date ?? null,
       queue_position,
       status: 'queued',
     })

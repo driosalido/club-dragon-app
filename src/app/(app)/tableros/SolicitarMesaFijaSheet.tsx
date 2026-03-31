@@ -29,6 +29,7 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
   const [bggId, setBggId] = useState('')
   const [showBggField, setShowBggField] = useState(false)
   const [reason, setReason] = useState('')
+  const [expectedEndDate, setExpectedEndDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [queuePosition, setQueuePosition] = useState<number | null>(null)
@@ -91,6 +92,7 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
           slot_id: slot.id,
           game_id: selectedGame.id,
           reason: reason.trim() || undefined,
+          expected_end_date: expectedEndDate || undefined,
         }),
       })
       if (!res.ok) {
@@ -210,6 +212,18 @@ export default function SolicitarMesaFijaSheet({ slot, onClose, onCreated }: Pro
               {selectedGame && (
                 <p className="text-xs text-green-400 mt-1 ml-1">✓ {selectedGame.name}</p>
               )}
+            </div>
+
+            {/* Expected end date (optional) */}
+            <div className="mb-4">
+              <label className="block text-sm text-slate-400 mb-2">Estimación de fin <span className="text-slate-600">(opcional)</span></label>
+              <input
+                type="date"
+                value={expectedEndDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setExpectedEndDate(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
+              />
             </div>
 
             {/* Reason (optional) */}

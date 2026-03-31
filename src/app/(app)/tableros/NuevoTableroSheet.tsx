@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, Plus, Trash2, ChevronLeft } from 'lucide-react'
 
 interface SlotData {
@@ -52,6 +52,15 @@ export default function NuevoTableroSheet({ slots, preselectedSlot, preselectedG
   // Step 3
   const [responsable, setResponsable] = useState<UserResult | null>(null)
   const [respSearch, setRespSearch] = useState('')
+
+  // Auto-set current user as default responsable
+  useEffect(() => {
+    fetch('/api/users/me')
+      .then((r) => r.json() as Promise<{ id: string; display_name: string; avatar_url: string | null }>)
+      .then((me) => { setResponsable((prev) => prev ?? { id: me.id, display_name: me.display_name, avatar_url: me.avatar_url }) })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [respResults, setRespResults] = useState<UserResult[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [userResults, setUserResults] = useState<UserResult[]>([])
