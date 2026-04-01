@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, LogOut } from 'lucide-react'
+import { Plus, Pencil, Trash2, LogOut, Ticket } from 'lucide-react'
 import type { Tables } from '@/types/database'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import InvitacionSheet from '../invitaciones/InvitacionSheet'
 
 type User = Tables<'users'>
 
@@ -21,6 +22,41 @@ interface UserGame {
   interest_level: 'want_to_play' | 'own_and_teach' | 'learning'
   notes: string | null
   games: Game | null
+}
+
+interface InvitationStats {
+  year: number
+  used_free: number
+  remaining_free: number
+  pending_count: number
+  next_is_paid: boolean
+  cost_euros: number
+  free_limit: number
+}
+
+interface GuestInvitation {
+  id: string
+  guest_name: string
+  visit_date: string
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'used'
+  is_paid: boolean
+  admin_notes: string | null
+}
+
+const INVITATION_STATUS_LABELS: Record<GuestInvitation['status'], string> = {
+  pending: 'Pendiente',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+  cancelled: 'Cancelada',
+  used: 'Usada',
+}
+
+const INVITATION_STATUS_COLORS: Record<GuestInvitation['status'], string> = {
+  pending: 'bg-amber-950 border-amber-800 text-amber-300',
+  approved: 'bg-green-950 border-green-800 text-green-300',
+  rejected: 'bg-red-950 border-red-800 text-red-300',
+  cancelled: 'bg-slate-800 border-slate-700 text-slate-400',
+  used: 'bg-indigo-950 border-indigo-800 text-indigo-300',
 }
 
 const INTEREST_LABELS = {
@@ -81,6 +117,7 @@ export default function PerfilClient({ initialUser }: Props) {
   const [searchResults, setSearchResults] = useState<Game[]>([])
   const [interestModal, setInterestModal] = useState<{ game: Game } | null>(null)
   const [editModal, setEditModal] = useState<{ game_id: string; game: Game; interest_level: string; notes: string | null } | null>(null)
+  const [invitacionSheetOpen, setInvitacionSheetOpen] = useState(false)
 
   const { data: user = initialUser } = useQuery<User>({
     queryKey: ['me'],
@@ -96,6 +133,27 @@ export default function PerfilClient({ initialUser }: Props) {
   const { data: availability = [] } = useQuery<AvailabilitySlot[]>({
     queryKey: ['my-availability'],
     queryFn: () => fetch('/api/users/me/availability').then((r) => r.json()),
+  })
+
+  const { data: invitationStats } = useQuery<InvitationStats>({
+    queryKey: ['invitation-stats'],
+    queryFn: () => fetch('/api/invitations/stats').then((r) => r.json()),
+  })
+
+  const { data: invitations = [] } = useQuery<GuestInvitation[]>({
+    queryKey: ['invitations-mine'],
+    queryFn: () => fetch('/api/invitations?mine=true').then((r) => r.json()),
+  })
+
+  const cancelInvitation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/invitations/${id}/cancel`, { method: 'POST' })
+      if (!res.ok) throw new Error('Error al cancelar')
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invitations-mine'] })
+      qc.invalidateQueries({ queryKey: ['invitation-stats'] })
+    },
   })
 
   const addGame = useMutation({
@@ -304,6 +362,85 @@ export default function PerfilClient({ initialUser }: Props) {
         )}
       </section>
 
+      {/* Invitaciones */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-white">Invitaciones</h2>
+          <button
+            onClick={() => setInvitacionSheetOpen(true)}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg p-1.5"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+
+        {/* Stats */}
+        {invitationStats && (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-3 mb-3 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <Ticket size={13} className="text-indigo-400" />
+                {invitationStats.used_free} de {invitationStats.free_limit} gratuitas usadas en {invitationStats.year}
+              </span>
+              {invitationStats.next_is_paid ? (
+                <span className="text-amber-400">Próxima: {invitationStats.cost_euros}€</span>
+              ) : (
+                <span className="text-green-400">{invitationStats.remaining_free} disponible{invitationStats.remaining_free !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  invitationStats.used_free === 0 ? 'bg-green-600'
+                  : invitationStats.used_free < invitationStats.free_limit ? 'bg-yellow-500'
+                  : 'bg-red-500'
+                }`}
+                style={{ width: `${Math.min(100, (invitationStats.used_free / invitationStats.free_limit) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* List */}
+        {invitations.length === 0 ? (
+          <p className="text-slate-500 text-sm">No tienes invitaciones todavía.</p>
+        ) : (
+          <ul className="space-y-2">
+            {invitations.map((inv) => (
+              <li key={inv.id} className="flex items-center justify-between bg-slate-900 rounded-xl px-3 py-2.5">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-white text-sm font-medium truncate">{inv.guest_name}</span>
+                  <span className="text-slate-500 text-xs">
+                    {format(parseISO(inv.visit_date), "d MMM yyyy", { locale: es })}
+                    {' · '}
+                    <span className={inv.is_paid ? 'text-amber-400' : 'text-green-400'}>
+                      {inv.is_paid ? '5€' : 'GRATIS'}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  <span className={`text-xs border rounded-full px-2 py-0.5 ${INVITATION_STATUS_COLORS[inv.status]}`}>
+                    {INVITATION_STATUS_LABELS[inv.status]}
+                  </span>
+                  {['pending', 'approved'].includes(inv.status) && (
+                    <button
+                      onClick={() => {
+                        if (!window.confirm('¿Cancelar esta invitación?')) return
+                        cancelInvitation.mutate(inv.id)
+                      }}
+                      disabled={cancelInvitation.isPending}
+                      className="text-slate-600 hover:text-red-400 disabled:opacity-50 text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* Logout */}
       <button
         onClick={async () => {
@@ -389,6 +526,19 @@ export default function PerfilClient({ initialUser }: Props) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Invitation sheet */}
+      {invitacionSheetOpen && invitationStats !== undefined && (
+        <InvitacionSheet
+          stats={invitationStats ?? null}
+          onClose={() => setInvitacionSheetOpen(false)}
+          onCreated={() => {
+            setInvitacionSheetOpen(false)
+            qc.invalidateQueries({ queryKey: ['invitations-mine'] })
+            qc.invalidateQueries({ queryKey: ['invitation-stats'] })
+          }}
+        />
       )}
 
       {/* Edit game modal */}

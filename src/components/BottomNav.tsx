@@ -2,12 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Layout, User, ShieldCheck, Ticket } from 'lucide-react'
+import { Layout, User, ShieldCheck } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 const BASE_NAV = [
   { href: '/tableros', label: 'Almacén', icon: Layout },
-  { href: '/invitaciones', label: 'Invitados', icon: Ticket },
   { href: '/perfil', label: 'Perfil', icon: User },
 ]
 
