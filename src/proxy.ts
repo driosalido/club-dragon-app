@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyJWT } from '@/lib/auth'
 
-const PROTECTED_PATHS = ['/partidas', '/tableros', '/perfil']
+const PROTECTED_PATHS = ['/partidas', '/tableros', '/perfil', '/invitaciones']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

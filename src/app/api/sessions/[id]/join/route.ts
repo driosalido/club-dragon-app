@@ -62,7 +62,7 @@ export async function POST(
   }
 
   // Recalculate session status
-  await recalculateSessionStatus(id, session.min_players, session.max_players, session.host_user_id, session.game_id)
+  await recalculateSessionStatus(id, session.min_players, session.max_players, session.host_user_id!, session.game_id)
 
   return Response.json(participant, { status: 201 })
 }

@@ -169,7 +169,7 @@ export async function PATCH(
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  if (!['pending', 'queued'].includes(mfr.status)) {
+  if (!['pending', 'queued'].includes(mfr.status ?? '')) {
     return Response.json({ error: 'Cannot edit request in this status', code: 'INVALID_STATUS' }, { status: 409 })
   }
 

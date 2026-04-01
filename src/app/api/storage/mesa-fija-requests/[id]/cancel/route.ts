@@ -35,7 +35,7 @@ export async function POST(
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  if (!['pending', 'queued'].includes(mfr.status)) {
+  if (!['pending', 'queued'].includes(mfr.status ?? '')) {
     return Response.json({ error: 'Cannot cancel a request in this state', code: 'INVALID_STATUS' }, { status: 409 })
   }
 

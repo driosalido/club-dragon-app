@@ -4,9 +4,9 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { Users, TableProperties, ChevronRight } from 'lucide-react'
+import { Users, TableProperties, ChevronRight, Ticket } from 'lucide-react'
 
-interface MesaFijaRequest { id: string }
+interface PendingItem { id: string }
 
 const SECTIONS = [
   {
@@ -28,6 +28,16 @@ const SECTIONS = [
     border: 'border-green-900',
     badgeKey: 'mesas-fijas' as const,
   },
+  {
+    href: '/admin/invitaciones',
+    icon: Ticket,
+    title: 'Invitaciones',
+    description: 'Aprobar solicitudes de invitados al club',
+    color: 'text-amber-400',
+    bg: 'bg-amber-950/40',
+    border: 'border-amber-900',
+    badgeKey: 'invitaciones' as const,
+  },
 ]
 
 export default function AdminPage() {
@@ -38,9 +48,15 @@ export default function AdminPage() {
     queryFn: () => fetch('/api/users/me').then((r) => r.json()),
   })
 
-  const { data: pendingMesas = [] } = useQuery<MesaFijaRequest[]>({
+  const { data: pendingMesas = [] } = useQuery<PendingItem[]>({
     queryKey: ['admin-mfr-pending'],
     queryFn: () => fetch('/api/storage/mesa-fija-requests?status=pending').then((r) => r.json()),
+    enabled: !!me?.is_admin,
+  })
+
+  const { data: pendingInvitations = [] } = useQuery<PendingItem[]>({
+    queryKey: ['admin-invitations-pending'],
+    queryFn: () => fetch('/api/invitations?status=pending').then((r) => r.json()),
     enabled: !!me?.is_admin,
   })
 
@@ -62,6 +78,7 @@ export default function AdminPage() {
 
   const badges: Record<string, number> = {
     'mesas-fijas': pendingMesas.length,
+    'invitaciones': pendingInvitations.length,
   }
 
   return (

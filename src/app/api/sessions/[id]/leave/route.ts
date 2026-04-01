@@ -51,7 +51,7 @@ export async function DELETE(
   }
 
   // Recalculate session status
-  await recalculateSessionStatus(id, session.min_players, session.max_players, session.host_user_id, session.game_id)
+  await recalculateSessionStatus(id, session.min_players, session.max_players, session.host_user_id!, session.game_id)
 
   return new Response(null, { status: 204 })
 }

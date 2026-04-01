@@ -333,3 +333,70 @@ export async function sendReminderNotification(
 
   await safeSend(bot, user.telegram_id, message)
 }
+
+export async function sendGuestInvitationRequestNotification(
+  admins: User[],
+  inviterName: string,
+  guestName: string,
+  visitDate: string,
+  isPaid: boolean
+): Promise<void> {
+  const bot = getBot()
+  if (!bot) return
+
+  const message = [
+    `🎫 <b>Nueva solicitud de invitado</b>`,
+    ``,
+    `👤 Invitado: <b>${guestName}</b>`,
+    `📅 Fecha de visita: ${formatDate(visitDate)}`,
+    `👥 Solicitado por: ${inviterName}`,
+    isPaid ? `💶 Esta invitación requiere pago de 5€ (3ª o posterior del año)` : `✅ Invitación gratuita`,
+    ``,
+    `Revisa la solicitud en la app del club para aprobarla o rechazarla.`,
+  ].join('\n')
+
+  for (const admin of admins) {
+    await safeSend(bot, admin.telegram_id, message)
+  }
+}
+
+export async function sendGuestInvitationApprovedNotification(
+  inviter: Pick<User, 'telegram_id' | 'display_name'>,
+  guestName: string,
+  visitDate: string,
+  isPaid: boolean
+): Promise<void> {
+  const bot = getBot()
+  if (!bot) return
+
+  const message = [
+    `✅ <b>¡Invitación aprobada!</b>`,
+    ``,
+    `Tu solicitud para invitar a <b>${guestName}</b> el ${formatDate(visitDate)} ha sido aprobada por la junta.`,
+    isPaid
+      ? `💶 Recuerda que esta invitación tiene un coste de <b>5€</b>, que deberás entregar a un miembro de la junta.`
+      : `🎉 Esta invitación es gratuita.`,
+  ].join('\n')
+
+  await safeSend(bot, inviter.telegram_id, message)
+}
+
+export async function sendGuestInvitationRejectedNotification(
+  inviter: Pick<User, 'telegram_id' | 'display_name'>,
+  guestName: string,
+  adminNotes: string | null
+): Promise<void> {
+  const bot = getBot()
+  if (!bot) return
+
+  const message = [
+    `❌ <b>Invitación rechazada</b>`,
+    ``,
+    `Tu solicitud para invitar a <b>${guestName}</b> no ha sido aprobada por la junta.`,
+    adminNotes ? `💬 Motivo: ${adminNotes}` : '',
+    ``,
+    `Puedes ponerte en contacto con la junta si tienes dudas.`,
+  ].filter(Boolean).join('\n')
+
+  await safeSend(bot, inviter.telegram_id, message)
+}

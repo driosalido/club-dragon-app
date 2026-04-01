@@ -163,7 +163,7 @@ export default function PerfilClient({ initialUser }: Props) {
             <p className="text-slate-400 text-sm">@{user.telegram_username}</p>
           )}
           <p className="text-slate-500 text-xs">
-            Socio desde {format(new Date(user.created_at), 'MMMM yyyy', { locale: es })}
+            Socio desde {user.created_at ? format(new Date(user.created_at), 'MMMM yyyy', { locale: es }) : '—'}
           </p>
           {user.member_number && (
             <p className="mt-1 text-xs text-indigo-400">Socio #{user.member_number}</p>

@@ -45,7 +45,7 @@ export async function notifyNewSession(sessionId: string): Promise<void> {
     .eq('id', sessionId)
     .single()
 
-  if (!session || !session.game_id) return
+  if (!session || !session.game_id || !session.host_user_id) return
 
   const { data: gameData } = await supabase
     .from('games')
@@ -95,7 +95,7 @@ export async function notifyNewSession(sessionId: string): Promise<void> {
   // Sort candidates
   const candidates = userGames
     .filter((ug) => !conflictingUserIds.has(ug.user_id))
-    .sort((a, b) => (INTEREST_ORDER[b.interest_level] ?? 0) - (INTEREST_ORDER[a.interest_level] ?? 0))
+    .sort((a, b) => (INTEREST_ORDER[b.interest_level ?? ''] ?? 0) - (INTEREST_ORDER[a.interest_level ?? ''] ?? 0))
 
   if (candidates.length === 0) {
     console.log(`[matching] All candidates excluded for session ${sessionId}`)
